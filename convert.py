@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 
-#               all | foil | art | signed | alter
-# -------------------------------------------------
-# text        |  x  |  x   |     |    x   |
-# multiverse  |     |      |     |        |
-# csv         |  x  |  x   |     |    x   |
-# printable   |  x  |  x   |  x  |    ?   |
+#               all | foil | collector number | signed | prerelease | alter
+# ---------------------------------------------------------------------------
+# text        |  x  |  x   |                  |    x   |            |
+# multiverse  |     |      |   not directly   |        |            |
+# csv         |  x  |  x   |     wrong???     |    x   |     x      |
+# printable   |  x  |  x   |        x         |    ?   |     x      |
 
 #TODO: Fix lightning helix. Check other STA cards
 
-import re, os, json, scrython, time
+import re, os, json, time
 
 # Use local scryfall database for this
 def get_default_collectors_number(name, set_abbr):
@@ -17,16 +17,42 @@ def get_default_collectors_number(name, set_abbr):
     # Scryfall  does Turn // Burn
     if '/' in name and '//' not in name:
         name = name.replace('/', '//')
+    # Tappedout uses an inconsistent number of _
+    # Scryfall always uses _____
+    name = re.sub('___+', '_____', name)
+    # Tappedout has a typo
+    if name == 'Psuedodragon Familiar':
+        name = 'Pseudodragon Familiar'
+    # Tappedout doesn't care about ñ
+    if name == 'Robo-Pinata':
+        name = 'Robo-Piñata'
     cards = [card for card in scryfall_db if card['name'].lower() == name.lower() and card['set'].lower() == set_abbr.lower()]
     # Cards with multiple faces, adventure cards, split cards, etc. will have a combined name
     # so we have to check the faces
     if len(cards) == 0:
         cards_with_faces = [card for card in scryfall_db if card.get('card_faces') != None]
         cards = [card for card in cards_with_faces if card['set'].lower() == set_abbr.lower() and card['card_faces'][0]['name'].lower() == name.lower()]
+
+    # If any collector_numbers are numeric
+    if any([card['collector_number'].isnumeric() for card in cards]):
+        # Filter out the cards with non-numeric collector numbers
+        cards = [card for card in cards if card['collector_number'].isnumeric()]
+        # Sort by collector number as int (sorting by str results in '125' < '64')
+        default = min(cards, key=lambda card: int(card['collector_number']))['collector_number']
+    # ex. Unfinity attractions have all non-numeric collector numbers
+    else:
+        card = min(cards, key=lambda card: card['collector_number'])
+        default = card['collector_number']
+
+        if len(cards) > 1:
+            # Tappedout doesn't seem to differentiate these so print a warning that we've defaulted to
+            # the first variation
+            print(f"WARNING: Tappedout might not differentiate between the versions of {card['name']} ({card['set']}), defaulting to collector number {default}.")
+
     if len(cards) == 0:
         print(cards)
         print(name, set_abbr)
-    default = min(cards, key=lambda card: card['collector_number'])['collector_number']
+
     assert type(default) == str
     assert default != ''
     return default
@@ -40,7 +66,11 @@ with open('shrunk.json', 'r') as db:
 with open('printable.txt', 'r') as f:
     with open('output.csv', 'w') as out:
         out.write(f"Quantity|Name|Set|Collector Number|Variation|List|Foil|Promo Pack|Prerelease|Language|Scryfall ID\n")
-        for line in f:
+        # We skip the first line because it's a title
+        for line in list(f)[1:]:
+            # Skip the blank lines
+            if line == '\n':
+                continue
             pattern = r'^([0-9]+)x ([^(]+) \(([A-Z0-9]{3,4})(:([A-Za-z0-9]+))?\)( \*(f|list|pp|f-pp|f-pre|[A-Z]{2})\*)?$'
             matches = re.match(pattern, line)
             if matches == None:
@@ -58,6 +88,10 @@ with open('printable.txt', 'r') as f:
                     set_abbr = 'pths'
                 elif name == 'Mind Stone':
                     set_abbr = 'pw21'
+                elif name == 'Goblin Guide':
+                    set_abbr = 'plg21'
+                elif name == 'Swiftfoot Boots':
+                    set_abbr = 'pw22'
                 else:
                     raise Exception(f"Unhandled 000 set. {name}")
             # tappedout and scryfall use different codes
@@ -110,7 +144,8 @@ with open('printable.txt', 'r') as f:
                 else:
                     language = foil_or_language
             card = [card for card in scryfall_db if card['set'].lower() == set_abbr.lower() and card['collector_number'] == collector_number]
-            assert len(card) == 1
+            if len(card) != 1:
+                raise ValueError(f"Expected only one card with collector number {collector_number} in set {set_abbr}. Cards: {card}")
             card = card[0]
             scryfall_id = card['id']
             out.write(f"{quantity}|{name}|{set_abbr}|{collector_number}|{variation}|{the_list}|{foil}|{promo_pack}|{prerelease}|{language}|{scryfall_id}\n")
@@ -124,7 +159,7 @@ with open('output.csv', 'r') as out:
         total_cards += int(row["Quantity"])
         assert(len(row.keys()) == 11)
 
-assert total_cards == 5668
+assert total_cards == 6890
 
 
 
