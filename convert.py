@@ -7,6 +7,8 @@
 # csv         |  x  |  x   |     |    x   |
 # printable   |  x  |  x   |  x  |    ?   |
 
+#TODO: Fix lightning helix. Check other STA cards
+
 import re, os, json, scrython, time
 
 # Use local scryfall database for this
