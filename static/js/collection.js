@@ -1,6 +1,8 @@
 var card_width = 150;
 var cur_page = 0;
 const PAGE_SIZE = 25;
+// How many pages forward and back for the page nav show
+const PAGE_NAV_SPAN = 3;
 
 async function add_page(scryfall_ids, abort_signal = new AbortController().signal) {
     // Convert ids to format scryfall wants
@@ -70,6 +72,63 @@ async function get_search(search_text, page_num) {
     return scryfall_ids;
 }
 
+async function create_page_nav() {
+    var collection_length_response = await fetch(`/api/collection?query=length`).then(response => response.json());
+    var collection_length = collection_length_response.length;
+    var num_pages = Math.floor(collection_length / PAGE_SIZE);
+    var page_nav = document.getElementById("page-nav");
+
+    if (cur_page > PAGE_NAV_SPAN) {
+        var last_link = document.createElement("a");
+        last_link.href = `?page=0`;
+        last_link.innerHTML = "0";
+        last_link.className = "page-nav-link";
+        page_nav.appendChild(last_link);
+
+        var elipses = document.createElement("div");
+        elipses.innerHTML = "..."
+        elipses.style.display = "inline"
+        page_nav.appendChild(elipses)
+    }
+
+    // Create the nav links for pages less than cur_page
+    for (var i = Math.min(PAGE_NAV_SPAN, cur_page); i > 0; i--) {
+        var new_link = document.createElement("a");
+        new_link.href = `?page=${cur_page - i}`;
+        new_link.innerHTML = `${cur_page - i}`
+        new_link.className = "page-nav-link"
+        page_nav.appendChild(new_link);
+    }
+
+
+    var cur_page_link = document.createElement("a");
+    cur_page_link.innerHTML = cur_page;
+    cur_page_link.className = "page-nav-link";
+    page_nav.appendChild(cur_page_link);
+
+    // Create the nav links for pages more than cur_page
+    for (var i = 1; i < Math.min(PAGE_NAV_SPAN, num_pages - cur_page) + 1; i++){
+        var new_link = document.createElement("a");
+        new_link.href = `?page=${cur_page + i}`;
+        new_link.innerHTML = `${cur_page + i}`;
+        new_link.className = "page-nav-link";
+        page_nav.appendChild(new_link);
+    }
+
+    if (num_pages - cur_page > PAGE_NAV_SPAN) {
+        var elipses = document.createElement("div");
+        elipses.innerHTML = "...";
+        elipses.style.display = "inline";
+        page_nav.appendChild(elipses)
+
+        var last_link = document.createElement("a");
+        last_link.href = `?page=${num_pages}`;
+        last_link.innerHTML = `${num_pages}`
+        last_link.className = "page-nav-link"
+        page_nav.appendChild(last_link);
+    }
+}
+
 async function main() {
     const urlParams = new URLSearchParams(location.search);
     if (urlParams.has('page')) {
@@ -79,23 +138,8 @@ async function main() {
     else {
         load_page(0);
     }
-    var collection_length_response = await fetch(`/api/collection?query=length`).then(response => response.json());
-    var collection_length = collection_length_response.length;
-    var page_nav = document.getElementById("page-nav");
-    // TODO: Don't show pages past the last page
-    for (var i = 0; i < 3; i++){
-        var new_link = document.createElement("a");
-        new_link.href = `?page=${cur_page + i}`;
-        new_link.innerHTML = `${cur_page + i}`
-        new_link.className = "page-nav-link"
-        page_nav.appendChild(new_link);
-    }
 
-    var last_link = document.createElement("a");
-    last_link.href = `?page=${Math.floor(collection_length / PAGE_SIZE)}`;
-    last_link.innerHTML = `${Math.floor(collection_length / PAGE_SIZE)}`
-    last_link.className = "page-nav-link"
-    page_nav.appendChild(last_link);
+    create_page_nav();
 
     var abort_controller = new AbortController();
 
