@@ -2,3 +2,4 @@ default-cards-*
 output.csv
 printable.txt
 shrunk.json
+__pycache__/
