@@ -33,19 +33,24 @@ async function add_page(scryfall_ids, abort_signal = new AbortController().signa
                 var image = document.createElement("img");
                 if (card.image_uris) {
                     image.src = card.image_uris.normal;
-                    image.loading = "lazy";
-                    image.className = "card-image";
-                    // This prevents more stuff from being added
-                    // after the search box is updated
-                    if (abort_signal.aborted) {
-                        break;
-                    }
-                    grid.appendChild(image);
+                }
+                else if (card.card_faces) {
+                    image.src = card.card_faces[0].image_uris.normal;
                 }
                 else {
                     console.log("Couldn't find image_uris image for card:");
                     console.log(card);
                 }
+                image.loading = "lazy";
+                image.className = "card-image";
+                // This prevents more stuff from being added
+                // after the search box is updated
+                if (abort_signal.aborted) {
+                    console.log("Aborted")
+                    break;
+                }
+                console.log("Adding card")
+                grid.appendChild(image);
             }
         });
 }
@@ -95,13 +100,14 @@ async function main() {
     var abort_controller = new AbortController();
 
     document.getElementById("collection-search").addEventListener('input', (e) => {
-        // abort the old controller then create a new one
-        abort_controller.abort();
-        abort_controller = new AbortController();
+        // This whole event listener is a race condition waiting to happen
+        // I think I've fixed it, but it's pretty hard to prove.
         var search_text = e.currentTarget.value;
+        var grid = document.getElementById("collection-grid");
         get_search(search_text, 0)
             .then(scryfall_ids => {
-                var grid = document.getElementById("collection-grid");
+                abort_controller.abort();
+                abort_controller = new AbortController();
                 while (grid.lastChild) {
                     grid.removeChild(grid.lastChild);
                 }
