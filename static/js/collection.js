@@ -1,10 +1,19 @@
 var card_width = 150;
 var cur_page = 0;
+var add_page_abort_controller = new AbortController();
 const PAGE_SIZE = 25;
 // How many pages forward and back for the page nav show
 const PAGE_NAV_SPAN = 3;
 
-async function add_page(cards, abort_signal = new AbortController().signal) {
+async function add_page(cards) {
+    // Abort the last call to add_page
+    add_page_abort_controller.abort();
+    // Make a new abort controller for this specific call to add_page
+    var current_abort_controller = new AbortController();
+    // Setup the global abort controller so
+    // the next call can abort this one if needed
+    add_page_abort_controller = current_abort_controller;
+
     // Convert ids to format scryfall wants
     post_body = {
         "identifiers": []
@@ -66,7 +75,7 @@ async function add_page(cards, abort_signal = new AbortController().signal) {
                 image.className = "card-image";
                 // This prevents more stuff from being added
                 // after the search box is updated
-                if (abort_signal.aborted) {
+                if (current_abort_controller.signal.aborted) {
                     console.log("Aborted")
                     break;
                 }
@@ -184,8 +193,6 @@ async function main() {
 
     create_page_nav(collection_length_response.length);
 
-    var abort_controller = new AbortController();
-
     document.getElementById("collection-search").addEventListener('input', (e) => {
         // This whole event listener is a race condition waiting to happen
         // I think I've fixed it, but it's pretty hard to prove.
@@ -209,12 +216,10 @@ async function main() {
                 var grid = document.getElementById("collection-grid");
                 get_search(search_text, 0)
                     .then(response => {
-                        abort_controller.abort();
-                        abort_controller = new AbortController();
                         while (grid.lastChild) {
                             grid.removeChild(grid.lastChild);
                         }
-                        add_page(response.cards, abort_controller.signal);
+                        add_page(response.cards);
                     });
             });
     })
