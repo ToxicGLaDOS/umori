@@ -65,29 +65,41 @@ def api_collection_pages(page: int):
     # TODO: Handle case where page is past the end
     start = PAGE_SIZE * page
     end = start + PAGE_SIZE
-    ids = [card['Scryfall ID'] for card in cards]
-    return json.dumps(ids[start:end])
 
-def api_collection_length():
-    print('length')
+
+    # Remove unnecessary data
+    cards = [{'quantity': card['Quantity'],
+              'scryfall_id': card['Scryfall ID']}
+             for card in cards]
+
+    return json.dumps({'cards': cards[start:end]})
+
+# TODO: Make searching into a function so we don't end up
+# with mismatch search results between the length query
+# and the actual search query
+def api_collection_length(search: str):
     with open('output.csv', 'r') as f:
-        cards_reader = csv.reader(f, delimiter='|')
-        return json.dumps({'length': len(list(cards_reader))})
+        cards_reader = csv.DictReader(f, delimiter='|')
+        length = len([
+            card for card in cards_reader if search.lower() in card['Name'].lower()
+            ])
+        print(length)
+        return json.dumps({'length': length})
 
 def api_collection_search(search_text: str, page: int):
-    ids = []
+    cards = []
     with open('output.csv', 'r') as f:
         cards_reader = csv.DictReader(f, delimiter='|')
         for card in cards_reader:
             name = card['Name'].lower()
             if search_text.lower() in name:
-                ids.append(card['Scryfall ID'])
+                cards.append({'scryfall_id': card['Scryfall ID'], 'quantity': card['Quantity']})
 
     start = PAGE_SIZE * page
     end = start + PAGE_SIZE
-    ids = ids[start:end]
+    cards = cards[start:end]
 
-    return json.dumps({'scryfall_ids': ids})
+    return json.dumps({'cards': cards})
 
 @app.route("/api/collection")
 def api_collection():
@@ -103,7 +115,10 @@ def api_collection():
 
     if query:
         if query == 'length':
-            return api_collection_length()
+            search = ''
+            if args.get('search'):
+                search = args.get('search')
+            return api_collection_length(search)
         elif query == 'search':
             # TODO: Check this exists and is valid
             search_text = args.get('text')
@@ -157,7 +172,9 @@ def login():
         return render_template_string('''
               {% with messages = get_flashed_messages() %}
               <form method="POST">
+              <label for="username">Username:</label>
               <input type="text" name="username" id="username"></input>
+              <label for="password">Password:</label>
               <input type="text" name= "password" id="password"></input>
               <input type="submit" value="Submit"></input>
               {% if messages %}
