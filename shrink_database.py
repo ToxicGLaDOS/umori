@@ -38,7 +38,12 @@ for card in original_data:
         shrunk_card['oracle_id'] = card['oracle_id']
 
     if card.get('card_faces'):
-        shrunk_card['card_faces'] = card['card_faces']
+        shrunk_card['card_faces'] = []
+        for face in card['card_faces']:
+            shrunk_face = {}
+            shrunk_face['name'] = face['name']
+
+            shrunk_card['card_faces'].append(shrunk_face)
 
     shrunk_card['name'] = card['name']
     shrunk_card['collector_number'] = card['collector_number']
