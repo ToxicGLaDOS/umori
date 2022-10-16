@@ -6,7 +6,7 @@ var add_page_abort_controller = new AbortController();
 
 // create_card is a function that returns a card which
 // will be shown in the grid
-async function add_page(cards, create_card) {
+async function add_page(cards_data, create_card) {
     // Abort the last call to add_page
     add_page_abort_controller.abort();
     // Make a new abort controller for this specific call to add_page
@@ -19,7 +19,7 @@ async function add_page(cards, create_card) {
     var post_body = {
         "identifiers": []
     }
-    for (var card of cards) {
+    for (var card of cards_data) {
         post_body.identifiers.push({
             "id": card.scryfall_id
         })
@@ -40,8 +40,8 @@ async function add_page(cards, create_card) {
             // TODO: Test what happens if you get only one result
             // the "object" member, might help there
 
-            for (var i = 0; i < cards.length; i++) {
-                var collection_card = cards[i];
+            for (var i = 0; i < cards_data.length; i++) {
+                var collection_card = cards_data[i];
                 var scryfall_card = cards_response.data[i];
 
                 if (scryfall_card.image_uris) {
@@ -55,13 +55,13 @@ async function add_page(cards, create_card) {
                     console.log(scryfall_card);
                 }
 
+                collection_card.collector_number = scryfall_card.collector_number;
+                collection_card.set = scryfall_card.set;
                 collection_card.name = scryfall_card.name;
             }
-            console.log(cards)
-
 
             // Create all the card objects in the DOM
-            for (var card of cards) {
+            for (var card of cards_data) {
                 var grid = document.getElementById("collection-grid");
                 var card_element = create_card(card);
                 // This prevents more stuff from being added
@@ -71,6 +71,7 @@ async function add_page(cards, create_card) {
                     break;
                 }
                 grid.appendChild(card_element);
+                card_element._card_data = card;
             }
         });
 }
@@ -147,10 +148,6 @@ async function initialize(create_card, load_page) {
     if (urlParams.has('search')) {
         search_query = urlParams.get('search');
         document.getElementById("collection-search").value = search_query;
-        var collection_length_response = await fetch(`/api/collection?query=length&search=${search_query}`).then(response => response.json());
-    }
-    else {
-        var collection_length_response = await fetch(`/api/collection?query=length`).then(response => response.json());
     }
     if (urlParams.has('page')) {
         cur_page = Number(urlParams.get('page'));
@@ -159,7 +156,6 @@ async function initialize(create_card, load_page) {
     else {
         load_page(0, search_query);
     }
-
 
     document.getElementById("collection-search").addEventListener('input', (e) => {
         // This whole event listener is a race condition waiting to happen

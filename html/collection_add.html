@@ -1,0 +1,81 @@
+<head>
+  <link rel="stylesheet" href="/static/css/collection.css">
+  <link rel="stylesheet" href="/static/css/collection_add.css">
+</head>
+<script type=module src="/static/js/collection_add.js"></script>
+<input type="search" id="collection-search"></input>
+<input type="fine-filter" id="fine-filter"></input>
+<div id="page-nav">
+</div>
+<div display="grid" id="collection-grid"></div>
+<div id="notification-container">
+</div>
+
+
+<template id="notification-template">
+  <div class="notification">
+  </div> 
+</template>
+<!-- The Modal -->
+<div id="myModal" class="modal">
+
+  <!-- Modal content -->
+  <div class="modal-content">
+    <span class="modal-close">&times;</span>
+    <span class="add-button-span">
+        <button id="add-button" class="add-button">Add card</button>
+    </span>
+    <img class="modal-card" id="modal-card"></img>
+    <table>
+        <tr>
+            <th>
+              <label for="quantity-input" class="modal-label">Quantity:</label>
+            </th>
+            <td>
+              <input id="quantity-input" type="number" class="modal-option" value="1" min="1"></input>
+            </td>
+        </tr>
+        <tr>
+            <th>
+              <label for="finish-select" class="modal-label">Finish:</label>
+            </th>
+            <td>
+              <select id="finish-select" class="modal-option"></select>
+            </td>
+        </tr>
+
+        <tr>
+            <th>
+              <label for="lang-select" class="modal-label">Language:</label>
+            </th>
+            <td>
+              <select id="lang-select" class="modal-option"></select>
+            </td>
+        </tr>
+        <tr>
+            <th>
+              <label for="signed-input" class="modal-label">Signed:</label>
+            </th>
+            <td>
+              <input id="signed-input" type="checkbox" class="modal-option"></input>
+            </td>
+        </tr>
+        <tr>
+            <th>
+              <label for="alter-input" class="modal-label">Altered:</label>
+            </th>
+            <td>
+              <input id="alter-input" type="checkbox" class="modal-option"></input>
+            </td>
+        </tr>
+        <tr>
+            <th>
+              <label for="notes" class="modal-label">Notes:</label>
+            </th>
+            <td>
+              <textarea id="notes" name="text" rows="10" cols="40" class="modal-option"></textarea>
+            </td>
+        </tr>
+    </table>
+  </div>
+</div>
