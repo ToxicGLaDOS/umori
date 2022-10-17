@@ -3,19 +3,24 @@
   <link rel="stylesheet" href="/static/css/collection_add.css">
 </head>
 <script type=module src="/static/js/collection_add.js"></script>
-<input type="search" id="collection-search"></input>
-<input type="fine-filter" id="fine-filter"></input>
+<input type="search" id="search"></input>
+<input id="fine-filter"></input>
 <div id="page-nav">
 </div>
-<div display="grid" id="collection-grid"></div>
+<div display="grid" id="card-display"></div>
 <div id="notification-container">
 </div>
 
 
-<template id="notification-template">
-  <div class="notification">
+<template id="notification-success-template">
+  <div class="notification notification-success">
   </div> 
 </template>
+<template id="notification-failure-template">
+  <div class="notification notification-failure">
+  </div>
+</template>
+
 <!-- The Modal -->
 <div id="myModal" class="modal">
 

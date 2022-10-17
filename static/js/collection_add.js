@@ -44,16 +44,22 @@ async function load_page(page_num, search_query) {
     var length = response.length;
 
     create_page_nav(length);
-    var grid = document.getElementById("collection-grid");
+    var grid = document.getElementById("card-display");
     while (grid.lastChild) {
         grid.removeChild(grid.lastChild);
     }
     add_page(response.cards, create_card);
 }
 
-function create_notification(text) {
+function create_notification(text, success) {
     var container = document.getElementById("notification-container");
-    var template = document.getElementById("notification-template");
+
+    if (success) {
+        var template = document.getElementById("notification-success-template");
+    }
+    else {
+        var template = document.getElementById("notification-failure-template");
+    }
 
     var notification = template.content.firstElementChild.cloneNode(true);
     notification.innerHTML = text;
@@ -70,6 +76,8 @@ function create_notification(text) {
             notification.parentNode.removeChild(notification)
         }
     }, 5000);
+
+    return notification;
 }
 
 function open_modal() {
@@ -79,7 +87,25 @@ function open_modal() {
     // Open the modal
     modal.style.display = "block";
 
+    var add_button = document.getElementById("add-button");
+
+    // Set focus on the add button
+    add_button.focus()
+
     return modal;
+}
+
+function close_modal_and_focus_search() {
+    var modal = document.getElementById("myModal");
+    modal.style.display = "none";
+
+    // Focus search and highlight the text
+    var search = document.getElementById('search');
+    search.select();
+    search.focus();
+
+    var fine_filter = document.getElementById('fine-filter');
+    fine_filter.value = "";
 }
 
 function init_modal() {
@@ -100,11 +126,22 @@ function init_modal() {
     // When the user clicks anywhere outside of the modal, close it
     window.onclick = function(event) {
         if (event.target == modal) {
-            modal.style.display = "none";
+            close_modal_and_focus_search();
         }
     }
 
+    // Close modal on escape press
+    modal.addEventListener('keyup', (e) => {
+        if (e.key == 'Escape') {
+            close_modal_and_focus_search();
+        }
+    });
+
     add_button.addEventListener('click', (e) => {
+        // Don't accept repeats
+        if (e.repeat) {
+            return;
+        }
         var quantity_input = document.getElementById("quantity-input");
         var finish_selector = document.getElementById("finish-select");
         var language_selector = document.getElementById("lang-select");
@@ -112,6 +149,8 @@ function init_modal() {
         var alter_input = document.getElementById("alter-input");
         var notes_text = document.getElementById("notes");
 
+        // We ensure that we've found all the elements
+        // so we don't send a bad request to the server
         if (quantity_input == null ||
             finish_selector == null ||
             language_selector == null ||
@@ -156,6 +195,7 @@ function init_modal() {
             'notes': notes
         };
 
+        // Make the POST request to add the card
         fetch(`/api/collection`, {
             method: 'POST',
             headers: {
@@ -166,13 +206,13 @@ function init_modal() {
             .then(response => response.json())
             .then(json_response => {
                 if (!json_response.successful) {
-                    alert("Adding card failed. See log for details.")
-                    console.log(json_response);
-                    return;
+                    create_notification(`Adding card failed. Error was ${json_response.error}`);
                 }
-                console.log(json_response);
-                var card = json_response.card;
-                create_notification(`Successfully added ${quantity}x ${card.name}`);
+                else {
+                    var card = json_response.card;
+                    create_notification(`Successfully added ${quantity}x ${card.name}`, true);
+                }
+                close_modal_and_focus_search();
             });
     });
 }
@@ -195,80 +235,110 @@ function add_card_to_modal(scryfall_id) {
         })
 }
 
+function populate_modal(scryfall_id) {
+    var modal = open_modal();
+    var modal_content = modal.getElementsByClassName('modal-content')[0];
+
+    fetch(`/api/by_id?scryfall_id=${scryfall_id}`)
+        .then(response => response.json())
+        .then(json_response => {
+            var finishes = json_response.finishes;
+            fetch(`/api/all_cards/languages?scryfall_id=${scryfall_id}`)
+                .then(response => response.json())
+                .then(langs_response => {
+                    var lang_selector = document.getElementById('lang-select');
+                    var finish_selector = document.getElementById('finish-select');
+                    lang_selector._lang_data = langs_response;
+                    // Remove all language options
+                    while (lang_selector.lastChild) {
+                        lang_selector.removeChild(lang_selector.lastChild);
+                    }
+
+                    // Generate new language options
+                    for (var lang_obj of langs_response) {
+                        var option = new Option(lang_obj.lang, lang_obj.scryfall_id);
+                        lang_selector.appendChild(option);
+                    }
+
+                    // Remove all finsh options
+                    while (finish_selector.lastChild) {
+                        finish_selector.removeChild(finish_selector.lastChild);
+                    }
+
+                    // Generate new language options
+                    for (var finish of finishes) {
+                        var option = new Option(finish, finish);
+                        finish_selector.appendChild(option);
+                    }
+
+                    // Add default lang card to modal
+                    add_card_to_modal(lang_selector.value);
+                })
+        });
+}
+
+
+// This is the event listener for when you want to open the modal
+function search_event_listener(e) {
+    if (e.key === 'Enter' && !e.repeat) {
+        var visible_cards = [];
+
+        for (var card of document.getElementById('card-display').childNodes){
+            if (card.style.display != 'none') {
+                visible_cards.push(card);
+            }
+        }
+
+        if (visible_cards.length == 0) {
+            console.log("No cards remaining.");
+            return;
+        }
+        var selected_card = visible_cards[0];
+        var selected_id = selected_card._card_data.scryfall_id;
+
+        populate_modal(selected_id);
+    }
+}
+
+// This function binds a keydown listener which in turn binds
+// a keyup function to detect a full key press on a single element
+// Multiple calls to this on the same element might break stuff
+function bind_full_press(element, keyup_function) {
+    element.addEventListener('keydown', (e) => {
+        if (e.repeat) {
+            return;
+        }
+        e.target.addEventListener('keyup', keyup_function, {once: true});
+    });
+
+    // We remove the keyup on focusout because it will be stuck on the
+    // object if we don't
+    element.addEventListener('focusout', (e) => {
+        element.removeEventListener('keyup', keyup_function, {once: true});
+    });
+}
+
 async function main() {
     init_modal();
 
-    var fine_filter = document.getElementById('fine-filter');
-    fine_filter.addEventListener('keyup', (e) => {
-        if (e.key === 'Enter') {
-            var visible_cards = [];
-
-            for (var card of document.getElementById('collection-grid').childNodes){
-                if (card.style.display != 'none') {
-                    visible_cards.push(card);
-                }
-            }
-
-            if (visible_cards.length == 0) {
-                console.log("No cards remaining.");
-                return;
-            }
-
-            var selected_card = visible_cards[0];
-            var selected_id = selected_card._card_data.scryfall_id;
-
-            var modal = open_modal();
-            var modal_content = modal.getElementsByClassName('modal-content')[0];
-
-            // Populate the modal
-            fetch(`/api/by_id?scryfall_id=${selected_id}`)
-                .then(response => response.json())
-                .then(json_response => {
-                    var finishes = json_response.finishes;
-                    fetch(`/api/all_cards/languages?scryfall_id=${selected_id}`)
-                        .then(response => response.json())
-                        .then(langs_response => {
-                            var lang_selector = document.getElementById('lang-select');
-                            var finish_selector = document.getElementById('finish-select');
-                            lang_selector._lang_data = langs_response;
-                            // Remove all language options
-                            while (lang_selector.lastChild) {
-                                lang_selector.removeChild(lang_selector.lastChild);
-                            }
-
-                            // Generate new language options
-                            for (var lang_obj of langs_response) {
-                                var option = new Option(lang_obj.lang, lang_obj.scryfall_id);
-                                lang_selector.appendChild(option);
-                            }
-
-                            // Remove all finsh options
-                            while (finish_selector.lastChild) {
-                                finish_selector.removeChild(finish_selector.lastChild);
-                            }
-
-                            // Generate new language options
-                            for (var finish of finishes) {
-                                var option = new Option(finish, finish);
-                                finish_selector.appendChild(option);
-                            }
-
-                            // Add default lang card to modal
-                            add_card_to_modal(lang_selector.value);
-
-                            // Setup listener to change card when new lang is selected
-                            lang_selector.addEventListener('change', (e) => {
-                                var scryfall_id = e.srcElement.value
-                                add_card_to_modal(scryfall_id);
-                            });
-                        })
-                });
-        }
+    var lang_selector = document.getElementById('lang-select');
+    // Setup listener to change card when new lang is selected
+    lang_selector.addEventListener('change', (e) => {
+        var scryfall_id = e.srcElement.value
+        add_card_to_modal(scryfall_id);
     });
+
+    var search = document.getElementById('search');
+    var fine_filter = document.getElementById('fine-filter');
+    var form = document.getElementById('search-form');
+
+    bind_full_press(search, search_event_listener);
+    bind_full_press(fine_filter, search_event_listener);
+
     fine_filter.addEventListener('input', (e) => {
         var filter_text = e.currentTarget.value;
         const set_regex = /^.*\(((.+):(.+))\)$/
-        for (var card of document.getElementById('collection-grid').childNodes){
+        for (var card of document.getElementById('card-display').childNodes){
             var card_title = card.querySelector('.card-quantity').innerHTML;
             var matches = set_regex.exec(card_title);
 
@@ -283,8 +353,6 @@ async function main() {
             else {
                 card.style.display = 'none';
             }
-
-            
         }
     })
 

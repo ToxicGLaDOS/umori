@@ -62,7 +62,7 @@ async function add_page(cards_data, create_card) {
 
             // Create all the card objects in the DOM
             for (var card of cards_data) {
-                var grid = document.getElementById("collection-grid");
+                var grid = document.getElementById("card-display");
                 var card_element = create_card(card);
                 // This prevents more stuff from being added
                 // after the search box is updated
@@ -147,7 +147,7 @@ async function initialize(create_card, load_page) {
     var search_query = '';
     if (urlParams.has('search')) {
         search_query = urlParams.get('search');
-        document.getElementById("collection-search").value = search_query;
+        document.getElementById("search").value = search_query;
     }
     if (urlParams.has('page')) {
         cur_page = Number(urlParams.get('page'));
@@ -157,7 +157,7 @@ async function initialize(create_card, load_page) {
         load_page(0, search_query);
     }
 
-    document.getElementById("collection-search").addEventListener('input', (e) => {
+    document.getElementById("search").addEventListener('input', (e) => {
         // This whole event listener is a race condition waiting to happen
         // I think I've fixed it, but it's pretty hard to prove.
         var search_text = e.currentTarget.value;

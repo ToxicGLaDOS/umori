@@ -79,29 +79,6 @@ def index():
 </style>
 <div class="grid"></div>'''
 
-def api_collection_pages(page: int):
-    cards = []
-    with open('output.csv', 'r') as f:
-        cards_reader = csv.DictReader(f, delimiter='|')
-        cards = list(cards_reader)
-    if page == None:
-        page = 0
-    else:
-        # TODO: Return error page if page isn't an int
-        page = int(page)
-
-    # TODO: Handle case where page is past the end
-    start = PAGE_SIZE * page
-    end = start + PAGE_SIZE
-
-
-    # Remove unnecessary data
-    cards = [{'quantity': card['Quantity'],
-              'scryfall_id': card['Scryfall ID']}
-             for card in cards]
-
-    return json.dumps({'cards': cards[start:end]})
-
 def api_collection_search(search_text: str, page: int):
     cards = []
     with open('output.csv', 'r') as f:
@@ -194,7 +171,6 @@ def api_collection():
         query = args.get('query')
 
         if page:
-            # TODO: Check page is actually an int
             page = int(page)
         else:
             page = 0
@@ -205,11 +181,11 @@ def api_collection():
                 search_text = args.get('text')
                 return api_collection_search(search_text, page)
             else:
-                # Return an error
                 error = {'successful': False, 'error': f'Unsupported value for query parameter "query". Expected "search". Got {query}'}
                 return json.dumps(error)
         else:
-            return api_collection_pages(page)
+            return api_collection_search('', page)
+
     # This is where we add cards to the database
     # We need to do as much error checking as possible here
     # to ensure we don't accidently mess up the database

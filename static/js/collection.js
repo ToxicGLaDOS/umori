@@ -42,7 +42,7 @@ async function load_page(page_num, search_query) {
     }
     var length = response.length;
     create_page_nav(length);
-    var grid = document.getElementById("collection-grid");
+    var grid = document.getElementById("card-display");
     while (grid.lastChild) {
         grid.removeChild(grid.lastChild);
     }
@@ -54,5 +54,5 @@ async function main() {
 }
 
 
-document.addEventListener("DOMContentLoaded", main)
+document.addEventListener("DOMContentLoaded", main);
 

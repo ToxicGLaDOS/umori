@@ -78,7 +78,6 @@ textarea {
 }
 
 .notification {
-  background-color: #090d;
   max-width: 25vw;
   margin: 10px;
   width: fit-content;
@@ -89,7 +88,16 @@ textarea {
 
 .notification:hover,
 .notification:focus {
-  background-color: #070d;
+  filter: brightness(85%);
   text-decoration: none;
   cursor: pointer;
+}
+
+.notification-success {
+  background-color: #090d;
+}
+
+.notification-failure {
+  background-color: #900d;
+  color: #eee
 }
