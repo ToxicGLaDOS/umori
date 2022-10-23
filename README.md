@@ -4,3 +4,7 @@
 3. Run `shrink_database.py <path to bulk data>`
 4. Run `convert.py`
 5. Output is in `output.csv`
+
+## Installing dependencies
+
+`pip install -r requirements.txt`

@@ -1,7 +1,7 @@
 from flask import Flask, request, url_for, redirect, abort, render_template_string, flash
 from urllib.parse import urlparse, urljoin
 from flask_login import LoginManager, login_required, login_user, logout_user
-import json, csv
+import json, csv, sqlite3
 
 login_manager = LoginManager()
 
@@ -9,34 +9,6 @@ app = Flask(__name__)
 login_manager.init_app(app)
 
 app.config['SECRET_KEY'] = 'aed47c6a4cf84f7585ab2243a10c0e96'
-
-# Adds a pretty hefty start-up cost, should
-# turn this into an actual database at some point
-with open('default-cards-20221015090439.json') as f:
-    SCRYFALL_BULK_DATA = json.loads(f.read())
-    # Only show cards in paper
-    SCRYFALL_BULK_DATA = filter(lambda card: 'paper' in card['games'], SCRYFALL_BULK_DATA)
-    # Sort alphabetically to start
-    SCRYFALL_BULK_DATA = sorted(SCRYFALL_BULK_DATA, key=lambda card: card['name'])
-
-with open('all-cards-20221015091439.json') as f:
-    SCRYFALL_BULK_DATA_ALL = json.load(f)
-    # Only show cards in paper
-    SCRYFALL_BULK_DATA_ALL = filter(lambda card: 'paper' in card['games'], SCRYFALL_BULK_DATA_ALL)
-    # Sort alphabetically to start
-    SCRYFALL_BULK_DATA_ALL = sorted(SCRYFALL_BULK_DATA_ALL, key=lambda card: card['name'])
-
-
-# LANGUAGE_MAP is a map from scryfall_id to
-# a list of languages that that card comes in
-# It's important to note that cards of different
-# language have different scryfall_ids, so
-# this dict assumes that a card with a given
-# set and collector number is a distinct card
-# (this seems to be scryfalls way of distinguishing cards
-# too based on the GET /cards/:code/:number(/:lang) endpoint)
-with open('language_map.json') as f:
-    LANGUAGE_MAP = json.load(f)
 
 class User:
     def __init__(self, id, password):
@@ -98,6 +70,9 @@ def api_collection_search(search_text: str, page: int):
 
 @app.route("/api/all_cards/languages")
 def api_all_cards_languages():
+    con = sqlite3.connect('all.db')
+    cur = con.cursor()
+
     args = request.args
     scryfall_id = args.get('scryfall_id')
 
@@ -105,39 +80,80 @@ def api_all_cards_languages():
         error = {'successful': False, 'error': 'Expected query param "scryfall_id"'}
         return json.dumps(error)
 
-    return json.dumps(LANGUAGE_MAP[scryfall_id])
+    res = cur.execute('''SELECT A.ID, A.DefaultLang, Langs.Lang FROM Cards A
+                INNER JOIN Cards B
+                INNER JOIN Langs ON A.LangID=Langs.ID
+                WHERE B.ID == ? AND A.CollectorNumber == B.CollectorNumber AND A.SetID == B.SetID''', (scryfall_id,))
+
+    rows = res.fetchall()
+    if len(rows) == 0:
+        error = {'successful': False, 'error': f"Couldn't find a card with scryfall_id \"{scryfall_id}\""}
+        return json.dumps(error)
+
+    languages = []
+
+    for row in rows:
+        id_ = row[0]
+        default = row[1]
+        lang = row[2]
+        obj = {
+                'scryfall_id': id_,
+                'default': bool(default),
+                'lang': lang
+                }
+
+        languages.append(obj)
+
+    return json.dumps(languages)
 
 @app.route("/api/by_id")
 def api_by_id():
+    con = sqlite3.connect('all.db')
+    cur = con.cursor()
+
     args = request.args
     scryfall_id = args.get('scryfall_id')
 
     if scryfall_id == None:
         error = {'successful': False, 'error': 'Expected query param "scryfall_id"'}
         return json.dumps(error)
-    
-    for card in SCRYFALL_BULK_DATA_ALL:
-        if card['id'] == scryfall_id:
-            return json.dumps(card)
 
-    error = {'successful': False, 'error': f"Couldn't find card with provided scryfall_id \"{scryfall_id}\""}
-    return json.dumps(error)
+    print(scryfall_id)
+    res = cur.execute("""SELECT Cards.ID, Cards.NormalImageURI, Finishes.Finish FROM Cards
+                      INNER JOIN FinishCards ON Cards.ID=FinishCards.CardID
+                      INNER JOIN Finishes ON FinishCards.FinishID=Finishes.ID
+                      WHERE Cards.ID == ?""", (scryfall_id,))
+    entries = res.fetchall()
+
+    if len(entries) == 0:
+        error = {'successful': False, 'error': f"Couldn't find card with provided scryfall_id \"{scryfall_id}\""}
+        return json.dumps(error)
+
+    card = {'scryfall_id': scryfall_id, 'finishes': [], 'image_uri': entries[0][1]}
+    for entry in entries:
+        card['finishes'].append(entry[2])
 
 
-def api_all_cards_search(search_text: str, page: int):
+    return json.dumps(card)
+
+
+def api_all_cards_search(search_text: str, page: int, default: bool):
+    con = sqlite3.connect('all.db')
+    cur = con.cursor()
+
     cards = []
-    for card in SCRYFALL_BULK_DATA:
-        name = card['name'].lower()
-        if search_text.lower() in name:
-            cards.append({'scryfall_id': card['id']})
+    search_string = f'%{search_text}%'
 
-    length = len(cards)
+    res = cur.execute("SELECT COUNT(*) FROM Cards WHERE LOWER(Name) LIKE ? AND DefaultLang == ?", (search_string, default))
+    length = res.fetchone()
 
-    start = PAGE_SIZE * page
-    end = start + PAGE_SIZE
-    cards = cards[start:end]
+    res = cur.execute("SELECT ID FROM Cards WHERE LOWER(Name) LIKE ? AND DefaultLang == ? LIMIT ?, ?", (search_string, default, page * PAGE_SIZE, PAGE_SIZE))
+    card_results = res.fetchall()
 
-    return json.dumps({'cards': cards, 'length':length})
+    for card in card_results:
+        cards.append({'scryfall_id': card[0]})
+
+    return json.dumps({'cards': cards, 'length': length})
 
 
 @app.route("/api/all_cards")
@@ -145,22 +161,28 @@ def api_all_cards():
     args = request.args
     page = args.get('page')
     query = args.get('query')
+    default = args.get('default')
 
     if page:
         page = int(page)
     else:
         page = 0
 
+    if default:
+        default = default == 'true'
+    else:
+        default = False
+
     if query:
         if query == 'search':
             # TODO: Check this exists and is valid
             search_text = args.get('text')
-            return api_all_cards_search(search_text, page)
+            return api_all_cards_search(search_text, page, default)
         else:
             # Return an error
             pass
     else:
-        return api_all_cards_search('', page)
+        return api_all_cards_search('', page, default)
 
 
 @app.route("/api/collection", methods = ['POST', 'GET'])
@@ -191,6 +213,9 @@ def api_collection():
     # to ensure we don't accidently mess up the database
     # or say we're adding a card when in reality we aren't
     elif request.method == 'POST':
+        con = sqlite3.connect('all.db')
+        cur = con.cursor()
+
         content_type = request.headers.get('Content-Type')
         if (content_type == 'application/json'):
             request_json = request.json
@@ -252,16 +277,20 @@ def api_collection():
 
             # TODO: Check for unexpected keys
 
-            scryfall_card = [card for card in SCRYFALL_BULK_DATA_ALL if card['id'] == scryfall_id]
-            if len(scryfall_card) < 1:
+            res = cur.execute("""SELECT Cards.Name, Cards.CollectorNumber, Sets.Abbreviation FROM Cards
+                              INNER JOIN Sets ON Cards.SetID=Sets.ID
+                              WHERE Cards.ID == ?""", (scryfall_id,))
+            row = res.fetchone()
+
+            if row == None:
                 error = {'successful': False, 'error': f'Couldn\'t find a card with that id "{scryfall_id}"'}
                 return json.dumps(error)
-            elif len(scryfall_card) > 1:
-                error = {'successful': False, 'error': f'Found multiple cards with that ID somehow.'}
-                return json.dumps(error)
 
-            scryfall_card = scryfall_card[0]
-
+            return_card = {
+                    'name': row[0],
+                    'collector_number': row[1],
+                    'set_abbr': row[2]
+                    }
 
             with open('output.csv', 'r') as f:
                 cards = list(csv.DictReader(f, delimiter='|'))
@@ -273,14 +302,14 @@ def api_collection():
                         writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='|')
                         writer.writeheader()
                         writer.writerows(cards)
-                    return_obj = {'successful': True, 'card': scryfall_card}
+                    return_obj = {'successful': True, 'card': return_card}
                     return json.dumps(return_obj)
 
             cards.append({
                 'Quantity': str(quantity),
-                'Name': scryfall_card['name'],
-                'Set': scryfall_card['set'],
-                'Collector Number': scryfall_card['collector_number'],
+                'Name': return_card['name'],
+                'Set': return_card['set_abbr'],
+                'Collector Number': return_card['collector_number'],
                 'Variation': str(None),
                 'List': str(False),
                 'Foil': str(False),
@@ -296,7 +325,7 @@ def api_collection():
                 writer.writeheader()
                 writer.writerows(cards)
 
-            return_obj = {'successful': True, 'card': scryfall_card}
+            return_obj = {'successful': True, 'card': return_card}
             return json.dumps(return_obj)
         else:
             error = {'successful': False, 'error': f"Expected Content-Type: application/json, found {content_type}"}

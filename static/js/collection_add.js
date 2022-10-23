@@ -34,7 +34,7 @@ function create_card(card) {
 
 async function load_page(page_num, search_query) {
     if (search_query) {
-        var response = await fetch(`/api/all_cards?page=${page_num}&query=search&text=${search_query}`)
+        var response = await fetch(`/api/all_cards?page=${page_num}&query=search&text=${search_query}&default=true`)
             .then(response => response.json());
     }
     else {
@@ -48,6 +48,7 @@ async function load_page(page_num, search_query) {
     while (grid.lastChild) {
         grid.removeChild(grid.lastChild);
     }
+
     add_page(response.cards, create_card);
 }
 
@@ -210,6 +211,7 @@ function init_modal() {
                 }
                 else {
                     var card = json_response.card;
+                    console.log(json_response);
                     create_notification(`Successfully added ${quantity}x ${card.name}`, true);
                 }
                 close_modal_and_focus_search();
@@ -222,11 +224,11 @@ function add_card_to_modal(scryfall_id) {
     fetch(`/api/by_id?scryfall_id=${scryfall_id}`)
         .then(response => response.json())
         .then(scryfall_card => {
-            if (scryfall_card.image_uris) {
-                modal_card.src = scryfall_card.image_uris.normal;
+            if (scryfall_card.image_uri) {
+                modal_card.src = scryfall_card.image_uri;
             }
             else if (scryfall_card.card_faces) {
-                modal_card.src = scryfall_card.card_faces[0].image_uris.normal;
+                modal_card.src = scryfall_card.card_faces[0].image_uri;
             }
             else {
                 console.log("Couldn't find image_uris image for card:");
@@ -242,20 +244,50 @@ function populate_modal(scryfall_id) {
     fetch(`/api/by_id?scryfall_id=${scryfall_id}`)
         .then(response => response.json())
         .then(json_response => {
+            if (!json_response.successful) {
+                console.log(json_response);
+            }
             var finishes = json_response.finishes;
             fetch(`/api/all_cards/languages?scryfall_id=${scryfall_id}`)
                 .then(response => response.json())
                 .then(langs_response => {
                     var lang_selector = document.getElementById('lang-select');
                     var finish_selector = document.getElementById('finish-select');
-                    lang_selector._lang_data = langs_response;
+                    var groups = langs_response.reduce((groups, obj) => {
+                        if (obj.default) {
+                            groups['default'] = obj;
+                        }
+                        else {
+                            groups['non_default'] = groups['non_default'] || [];
+                            groups['non_default'].push(obj);
+                        }
+                        return groups;
+                    }, {});
+
+                    var default_lang_obj = groups['default'];
+                    var non_default_lang_objs = groups['non_default'].sort((a, b) => {
+                        if (a.lang < b.lang) {
+                            return -1;
+                        }
+                        if (a.lang > b.lang){
+                            return 1;
+                        }
+                        return 0;
+                    });
+
+                    var lang_objs = []
+                    lang_objs.push(default_lang_obj);
+                    lang_objs = lang_objs.concat(non_default_lang_objs);
+
+                    lang_selector._lang_data = lang_objs;
+
                     // Remove all language options
                     while (lang_selector.lastChild) {
                         lang_selector.removeChild(lang_selector.lastChild);
                     }
 
                     // Generate new language options
-                    for (var lang_obj of langs_response) {
+                    for (var lang_obj of lang_selector._lang_data) {
                         var option = new Option(lang_obj.lang, lang_obj.scryfall_id);
                         lang_selector.appendChild(option);
                     }

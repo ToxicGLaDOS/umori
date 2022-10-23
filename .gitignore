@@ -1,4 +1,6 @@
 default-cards-*
+all-cards-*
+all.db
 output.csv
 printable.txt
 shrunk.json
