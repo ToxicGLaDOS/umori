@@ -7,9 +7,7 @@
 # csv         |  x  |  x   |     wrong???     |    x   |     x      |
 # printable   |  x  |  x   |        x         |    ?   |     x      |
 
-#TODO: Fix lightning helix. Check other STA cards
-
-import re, os, json, time
+import re, sys, os, json, time
 
 # Use local scryfall database for this
 def get_default_collectors_number(name, set_abbr):
@@ -26,12 +24,13 @@ def get_default_collectors_number(name, set_abbr):
     # Tappedout doesn't care about ñ
     if name == 'Robo-Pinata':
         name = 'Robo-Piñata'
-    cards = [card for card in scryfall_db if card['name'].lower() == name.lower() and card['set'].lower() == set_abbr.lower()]
+    set_ = sets[set_abbr]
+    cards = [card for card in set_ if card['name'].lower() == name.lower()]
     # Cards with multiple faces, adventure cards, split cards, etc. will have a combined name
     # so we have to check the faces
     if len(cards) == 0:
-        cards_with_faces = [card for card in scryfall_db if card.get('card_faces') != None]
-        cards = [card for card in cards_with_faces if card['set'].lower() == set_abbr.lower() and card['card_faces'][0]['name'].lower() == name.lower()]
+        cards_with_faces = [card for card in set_ if card.get('card_faces') != None]
+        cards = [card for card in cards_with_faces if card['card_faces'][0]['name'].lower() == name.lower()]
 
     # If any collector_numbers are numeric
     if any([card['collector_number'].isnumeric() for card in cards]):
@@ -57,11 +56,33 @@ def get_default_collectors_number(name, set_abbr):
     assert default != ''
     return default
 
+if len(sys.argv) != 3:
+    print("Expected exactly 2 argurments. The path to the ALL json bulk data and the path to the DEFAULT json bulk data.")
+    exit(1)
 
-scryfall_db = []
+with open(sys.argv[1], 'r') as f:
+    all_data = json.load(f)
 
-with open('shrunk.json', 'r') as db:
-    scryfall_db = json.load(db)
+with open(sys.argv[2], 'r') as f:
+    default_data = json.load(f)
+
+# Maps collector_number:set -> <default language>
+default_language_map = {}
+
+# Maps set -> [<card_objs>]
+# Splitting the big list into sets is a good way to reduce iteration
+# and for every card we _always_ have the set from tappedout's data
+sets = {}
+
+for card in default_data:
+    key = f"{card['collector_number']}:{card['set']}"
+    default_language_map[key] = card['lang']
+
+for card in all_data:
+    if not sets.get(card['set']):
+        sets[card['set']] = []
+
+    sets[card['set']].append(card)
 
 with open('printable.txt', 'r') as f:
     with open('output.csv', 'w') as out:
@@ -78,7 +99,7 @@ with open('printable.txt', 'r') as f:
 
             quantity = matches.group(1)
             name = matches.group(2)
-            set_abbr = matches.group(3)
+            set_abbr = matches.group(3).lower()
             if set_abbr == '000':
                 if name == 'Arbor Elf':
                     set_abbr = 'pw21'
@@ -95,16 +116,16 @@ with open('printable.txt', 'r') as f:
                 else:
                     raise Exception(f"Unhandled 000 set. {name}")
             # tappedout and scryfall use different codes
-            if set_abbr == 'MYS1':
-                set_abbr = 'MB1'
-            elif set_abbr == 'EO2':
-                set_abbr = 'E02'
-            elif set_abbr == 'PFL':
-                set_abbr = 'PD2'
-            # These appear to be just wrong in tappedout?
-            elif set_abbr == 'TSB':
+            if set_abbr == 'mys1':
+                set_abbr = 'mb1'
+            elif set_abbr == 'eo2':
+                set_abbr = 'e02'
+            elif set_abbr == 'pfl':
+                set_abbr = 'pd2'
+            # these appear to be just wrong in tappedout?
+            elif set_abbr == 'tsb':
                 if name in ['Swamp', 'Aarakocra Sneak']:
-                    set_abbr = 'CLB'
+                    set_abbr = 'clb'
             # 3 is a wrapper to make the varaition optional
             variation = matches.group(5)
             collector_number = None
@@ -126,7 +147,8 @@ with open('printable.txt', 'r') as f:
             # 6 wraps around the *'s
             foil_or_language = matches.group(7)
             foil = False
-            language = "EN"
+            key = f"{collector_number}:{set_abbr.lower()}"
+            language = default_language_map[key]
             the_list = False
             if foil_or_language:
                 if foil_or_language == 'f':
@@ -142,9 +164,15 @@ with open('printable.txt', 'r') as f:
                     foil = True
                     prerelease = True
                 else:
-                    language = foil_or_language
-            card = [card for card in scryfall_db if card['set'].lower() == set_abbr.lower() and card['collector_number'] == collector_number]
+                    language = foil_or_language.lower()
+            if language == 'zh':
+                print(f"WARNING: Tappedout doesn't have Chinese Traditional as a language option. Verify this card is actually Chinese Simplified. {name} ({set_abbr}:{collector_number})")
+                language = 'zhs'
+
+            set_ = sets[set_abbr]
+            card = [card for card in set_ if card['collector_number'] == collector_number and card['lang'].lower() == language.lower()]
             if len(card) != 1:
+                import pdb; pdb.set_trace()
                 raise ValueError(f"Expected only one card with collector number {collector_number} in set {set_abbr}. Cards: {card}")
             card = card[0]
             scryfall_id = card['id']

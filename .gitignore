@@ -3,5 +3,4 @@ all-cards-*
 all.db
 output.csv
 printable.txt
-shrunk.json
 __pycache__/
