@@ -1,18 +1,19 @@
 #!/usr/bin/env python
-import sqlite3, json, sys, os
+import sqlite3, ijson, sys, os
 
 if len(sys.argv) != 3:
     print("Expected exactly two arguments, the path to the ALL data and the path to the DEFAULT data")
 
-with open(sys.argv[1]) as f:
-    all_data = json.load(f)
+all_data_file = open(sys.argv[1])
+default_data_file = open(sys.argv[2])
 
-with open(sys.argv[2]) as f:
-    default_data = json.load(f)
+all_data = ijson.items(all_data_file, 'item', use_float=True)
 
-if len(all_data) < len(default_data):
-    print("ALL database has fewer cards than DEFAULT database, arguments are probably in wrong order.")
-    exit(1)
+default_data = ijson.items(default_data_file, 'item', use_float=True)
+
+#if len(all_data) < len(default_data):
+#    print("ALL database has fewer cards than DEFAULT database, arguments are probably in wrong order.")
+#    exit(1)
 
 default_set = set()
 
@@ -27,48 +28,48 @@ for card in default_data:
 
     default_set.add(scryfall_id)
 
-if os.path.exists('all.db'):
-    os.remove('all.db')
+#if os.path.exists('all.db'):
+#    os.remove('all.db')
 
 con = sqlite3.connect('all.db')
 cur = con.cursor()
 
-cur.execute('''CREATE TABLE Langs
+cur.execute('''CREATE TABLE IF NOT EXISTS Langs
             (
             ID   INTEGER PRIMARY KEY AUTOINCREMENT,
             Lang VARCHAR             NOT NULL UNIQUE
             )
             ''')
 
-cur.execute('''CREATE TABLE Layouts
+cur.execute('''CREATE TABLE IF NOT EXISTS Layouts
             (
             ID     INTEGER     PRIMARY KEY AUTOINCREMENT,
             Layout VARCHAR                 NOT NULL UNIQUE
             )
             ''')
 
-cur.execute('''CREATE TABLE ImageStatuses
+cur.execute('''CREATE TABLE IF NOT EXISTS ImageStatuses
             (
             ID          INTEGER     PRIMARY KEY AUTOINCREMENT,
             ImageStatus VARCHAR                 NOT NULL UNIQUE
             )
             ''')
 
-cur.execute('''CREATE TABLE Legalities
+cur.execute('''CREATE TABLE IF NOT EXISTS Legalities
             (
             ID       INTEGER     PRIMARY KEY AUTOINCREMENT,
             Legality VARCHAR                 NOT NULL UNIQUE
             )
             ''')
 
-cur.execute('''CREATE TABLE SetTypes
+cur.execute('''CREATE TABLE IF NOT EXISTS SetTypes
             (
             ID   INTEGER PRIMARY KEY AUTOINCREMENT,
             Type VARCHAR             NOT NULL UNIQUE
             )
             ''')
 
-cur.execute('''CREATE TABLE Sets
+cur.execute('''CREATE TABLE IF NOT EXISTS Sets
             (
             ID           UUID    PRIMARY KEY             NOT NULL,
             Name         VARCHAR                         NOT NULL UNIQUE,
@@ -77,29 +78,32 @@ cur.execute('''CREATE TABLE Sets
             )
             ''')
 
-cur.execute('''CREATE TABLE Rarities
+cur.execute('''CREATE TABLE IF NOT EXISTS Rarities
             (
             ID     INTEGER     PRIMARY KEY AUTOINCREMENT,
             Rarity VARCHAR                 NOT NULL UNIQUE
             )
             ''')
 
-cur.execute('''CREATE TABLE BorderColors
+cur.execute('''CREATE TABLE IF NOT EXISTS BorderColors
             (
             ID          INTEGER     PRIMARY KEY AUTOINCREMENT,
             BorderColor VARCHAR             NOT NULL UNIQUE
             )
             ''')
 
-cur.execute('''CREATE TABLE Frames
+cur.execute('''CREATE TABLE IF NOT EXISTS Frames
             (
             ID    INTEGER     PRIMARY KEY AUTOINCREMENT,
             Frame VARCHAR                 NOT NULL UNIQUE
             )
             ''')
-
-# Needs colors junction
-cur.execute('''CREATE TABLE Faces
+# Why UNIQUE(CardID, Name, NormalImageURI)
+# CardID + Name isn't sufficent because of SLD Stitch in Time (and others)
+# CardID + NormalImageURI isn't sufficent because NormalImageURI is NULL
+# when both "faces" are on the same side of the card (ex. aftermath cards)
+# TODO: Needs colors junction
+cur.execute('''CREATE TABLE IF NOT EXISTS Faces
             (
             ID             INTEGER PRIMARY KEY          AUTOINCREMENT,
             CardID         UUID    REFERENCES Cards(id)      NOT NULL,
@@ -111,14 +115,15 @@ cur.execute('''CREATE TABLE Faces
             Artist         VARCHAR                                   ,
             ArtistID       UUID                                      ,
             IllustrationID UUID                                      ,
-            NormalImageURI VARCHAR
+            NormalImageURI VARCHAR                                   ,
+            UNIQUE(CardID, Name, ManaCost, OracleText, IllustrationID)
             )
             ''')
 
 # We _could_ make a table for the MultiverseIDs and
 # have this be forign keys to each table, but that seems
 # unnecessary
-cur.execute('''CREATE TABLE MultiverseIDCards
+cur.execute('''CREATE TABLE IF NOT EXISTS MultiverseIDCards
             (
             ID           INTEGER PRIMARY KEY         ,
             CardID       UUID                NOT NULL,
@@ -128,71 +133,76 @@ cur.execute('''CREATE TABLE MultiverseIDCards
 
 # The (1) is ignored in sqlite, but
 # it's nice just to have
-cur.execute('''CREATE TABLE Colors
+cur.execute('''CREATE TABLE IF NOT EXISTS Colors
             (
             ID    INTEGER PRIMARY KEY,
             Color CHAR(1) NOT NULL UNIQUE
             )
             ''')
 
-cur.execute('''CREATE TABLE ColorCards
+cur.execute('''CREATE TABLE IF NOT EXISTS ColorCards
             (
             ID      INTEGER  PRIMARY KEY,
             CardID  UUID     NOT NULL,
-            ColorID INTEGER  NOT NULL
+            ColorID INTEGER  NOT NULL,
+            UNIQUE(CardID, ColorID)
             )
             ''')
 
-cur.execute('''CREATE TABLE ColorIdentityCards
+cur.execute('''CREATE TABLE IF NOT EXISTS ColorIdentityCards
             (
             ID      INTEGER  PRIMARY KEY,
             CardID  UUID     NOT NULL,
-            ColorID INTEGER  NOT NULL
+            ColorID INTEGER  NOT NULL,
+            UNIQUE(CardID, ColorID)
             )
             ''')
 
-cur.execute('''CREATE TABLE Keywords
+cur.execute('''CREATE TABLE IF NOT EXISTS Keywords
             (
             ID      INTEGER PRIMARY KEY,
             Keyword VARCHAR NOT NULL UNIQUE
             )
             ''')
 
-cur.execute('''CREATE TABLE KeywordCards
+cur.execute('''CREATE TABLE IF NOT EXISTS KeywordCards
             (
             ID        INTEGER PRIMARY KEY,
             CardID    UUID    NOT NULL,
-            KeywordID INTEGER NOT NULL
+            KeywordID INTEGER NOT NULL,
+            UNIQUE(CardID, KeywordID)
             )
             ''')
 
-cur.execute('''CREATE TABLE Games
+cur.execute('''CREATE TABLE IF NOT EXISTS Games
             (
             ID   INTEGER PRIMARY KEY,
             Game VARCHAR NOT NULL UNIQUE
             )
             ''')
 
-cur.execute('''CREATE TABLE GameCards
+cur.execute('''CREATE TABLE IF NOT EXISTS GameCards
             (
             ID     INTEGER PRIMARY KEY,
             CardID UUID    NOT NULL,
-            GameID INTEGER NOT NULL
+            GameID INTEGER NOT NULL,
+            UNIQUE(CardID, GameID)
             )
             ''')
 
-cur.execute('''CREATE TABLE Finishes
+cur.execute('''CREATE TABLE IF NOT EXISTS Finishes
             (
             ID     INTEGER PRIMARY KEY,
             Finish VARCHAR NOT NULL UNIQUE 
             )
             ''')
 
-cur.execute('''CREATE TABLE FinishCards
+cur.execute('''CREATE TABLE IF NOT EXISTS FinishCards
             (
             ID       INTEGER PRIMARY KEY,
             CardID   UUID    NOT NULL,
-            FinishID INTEGER NOT NULL
+            FinishID INTEGER NOT NULL,
+            UNIQUE(CardID, FinishID)
             )
             ''')
 
@@ -206,7 +216,7 @@ cur.execute('''CREATE TABLE FinishCards
 # but sometimes they are :shrug:
 #
 # DefaultLang is the only column that's calculated
-cur.execute('''CREATE TABLE Cards
+cur.execute('''CREATE TABLE IF NOT EXISTS Cards
                (
                ID                      UUID        PRIMARY KEY                               NOT NULL,
                OracleID                UUID                                                          ,
@@ -269,7 +279,11 @@ cur.execute('''CREATE TABLE Cards
              ''')
 
 
-insert_statement = 'INSERT INTO cards(ID, OracleID, MtgoID, MtgoFoilID, TcgplayerID, CardmarketID, Name, LangID, DefaultLang, ReleasedAt, LayoutID, HighresImage, ImageStatusID, NormalImageURI, ManaCost, Cmc, TypeLine, OracleText, Power, Toughness, LegalStandardID, LegalFutureID, LegalHistoricID, LegalGladiatorID, LegalPioneerID, LegalExplorerID, LegalModernID, LegalLegacyID, LegalPauperID, LegalVintageID, LegalPennyID, LegalCommanderID, LegalBrawlID, LegalHistoricBrawlID, LegalAlchemyID, LegalPauperCommanderID, LegalDuelID, LegalOldschoolID, LegalPremodernID, Reserved, Oversized, Promo, Reprint, Variation, SetID, CollectorNumber, Digital, RarityID, FlavorText, Artist, IllustrationID, BorderColorID, FrameID, FullArt, Textless, Booster, StorySpotlight) VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?) RETURNING ID'
+insert_statement = '''INSERT INTO Cards(ID, OracleID, MtgoID, MtgoFoilID, TcgplayerID, CardmarketID, Name, LangID, DefaultLang, ReleasedAt, LayoutID, HighresImage, ImageStatusID, NormalImageURI, ManaCost, Cmc, TypeLine, OracleText, Power, Toughness, LegalStandardID, LegalFutureID, LegalHistoricID, LegalGladiatorID, LegalPioneerID, LegalExplorerID, LegalModernID, LegalLegacyID, LegalPauperID, LegalVintageID, LegalPennyID, LegalCommanderID, LegalBrawlID, LegalHistoricBrawlID, LegalAlchemyID, LegalPauperCommanderID, LegalDuelID, LegalOldschoolID, LegalPremodernID, Reserved, Oversized, Promo, Reprint, Variation, SetID, CollectorNumber, Digital, RarityID, FlavorText, Artist, IllustrationID, BorderColorID, FrameID, FullArt, Textless, Booster, StorySpotlight)
+                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+                    ON CONFLICT(ID) DO
+                        UPDATE
+                        SET ID = ?, OracleID = ?, MtgoID = ?, MtgoFoilID = ?, TcgplayerID = ?, CardmarketID = ?, Name = ?, LangID = ?, DefaultLang = ?, ReleasedAt = ?, LayoutID = ?, HighresImage = ?, ImageStatusID = ?, NormalImageURI = ?, ManaCost = ?, Cmc = ?, TypeLine = ?, OracleText = ?, Power = ?, Toughness = ?, LegalStandardID = ?, LegalFutureID = ?, LegalHistoricID = ?, LegalGladiatorID = ?, LegalPioneerID = ?, LegalExplorerID = ?, LegalModernID = ?, LegalLegacyID = ?, LegalPauperID = ?, LegalVintageID = ?, LegalPennyID = ?, LegalCommanderID = ?, LegalBrawlID = ?, LegalHistoricBrawlID = ?, LegalAlchemyID = ?, LegalPauperCommanderID = ?, LegalDuelID = ?, LegalOldschoolID = ?, LegalPremodernID = ?, Reserved = ?, Oversized = ?, Promo = ?, Reprint = ?, Variation = ?, SetID = ?, CollectorNumber = ?, Digital = ?, RarityID = ?, FlavorText = ?, Artist = ?, IllustrationID = ?, BorderColorID = ?, FrameID = ?, FullArt = ?, Textless = ?, Booster = ?, StorySpotlight = ? RETURNING ID'''
 
 # First pass to gather all data to put in the small tables
 langs = set()
@@ -286,6 +300,8 @@ colors = set()
 keywords = set()
 games = set()
 finishes = set()
+# This allows index to be used after the loop which effectively counts how many card there are
+index = 0
 for index, card in enumerate(all_data):
     langs.add(card['lang'])
     layouts.add(card['layout'])
@@ -333,41 +349,50 @@ for index, card in enumerate(all_data):
         finishes.add(finish)
 
 for lang in langs:
-    res = cur.execute('INSERT INTO Langs (Lang) VALUES(?) RETURNING ID', (lang,))
+    res = cur.execute('INSERT OR IGNORE INTO Langs (Lang) VALUES(?) RETURNING ID', (lang,))
 for layout in layouts:
-    res = cur.execute('INSERT INTO Layouts (Layout) VALUES(?) RETURNING ID', (layout,))
+    res = cur.execute('INSERT OR IGNORE INTO Layouts (Layout) VALUES(?) RETURNING ID', (layout,))
 for image_status in image_statuses:
-    res = cur.execute('INSERT INTO ImageStatuses (ImageStatus) VALUES(?) RETURNING ID', (image_status,))
+    res = cur.execute('INSERT OR IGNORE INTO ImageStatuses (ImageStatus) VALUES(?) RETURNING ID', (image_status,))
 for rarity in rarities:
-    res = cur.execute('INSERT INTO Rarities (Rarity) VALUES(?) RETURNING ID', (rarity,))
+    res = cur.execute('INSERT OR IGNORE INTO Rarities (Rarity) VALUES(?) RETURNING ID', (rarity,))
 for border_color in border_colors:
-    res = cur.execute('INSERT INTO BorderColors (BorderColor) VALUES(?) RETURNING ID', (border_color,))
+    res = cur.execute('INSERT OR IGNORE INTO BorderColors (BorderColor) VALUES(?) RETURNING ID', (border_color,))
 for frame in frames: 
-    res = cur.execute('INSERT INTO Frames (Frame) VALUES(?) RETURNING ID', (frame,))
+    res = cur.execute('INSERT OR IGNORE INTO Frames (Frame) VALUES(?) RETURNING ID', (frame,))
 for set_type in set_types:
-    res = cur.execute('INSERT INTO SetTypes (Type) VALUES(?) RETURNING ID', (set_type,))
+    res = cur.execute('INSERT OR IGNORE INTO SetTypes (Type) VALUES(?) RETURNING ID', (set_type,))
 for legality in legalities:
-    res = cur.execute('INSERT INTO Legalities (Legality) VALUES(?) RETURNING ID', (legality,))
+    res = cur.execute('INSERT OR IGNORE INTO Legalities (Legality) VALUES(?) RETURNING ID', (legality,))
 for set_ in sets:
     res = cur.execute('SELECT ID FROM SetTypes WHERE Type == ?', (set_[2],))
     set_type_id = res.fetchone()[0]
-    res = cur.execute('INSERT INTO Sets (ID, Name, TypeID, Abbreviation) VALUES(?,?,?,?) RETURNING ID', (set_[0], set_[1], set_type_id, set_[3],))
+    res = cur.execute('INSERT OR IGNORE INTO Sets (ID, Name, TypeID, Abbreviation) VALUES(?,?,?,?) RETURNING ID', (set_[0], set_[1], set_type_id, set_[3],))
 for face in faces:
-    res = cur.execute('INSERT INTO Faces (CardID, Name, ManaCost, TypeLine, OracleText, FlavorText, Artist, ArtistID, IllustrationID, NormalImageURI) VALUES(?,?,?,?,?,?,?,?,?,?) RETURNING ID', face)
+    res = cur.execute('INSERT OR IGNORE INTO Faces (CardID, Name, ManaCost, TypeLine, OracleText, FlavorText, Artist, ArtistID, IllustrationID, NormalImageURI) VALUES(?,?,?,?,?,?,?,?,?,?) RETURNING ID', face)
+    row = res.fetchone()
+    if row != None:
+        #print(row)
+        pass
+    else:
+        print(face)
+        pass
 for color in colors:
-    res = cur.execute('INSERT INTO Colors (Color) VALUES(?) RETURNING ID', (color,))
+    res = cur.execute('INSERT OR IGNORE INTO Colors (Color) VALUES(?) RETURNING ID', (color,))
 for keyword in keywords:
-    res = cur.execute('INSERT INTO Keywords (Keyword) VALUES(?) RETURNING ID', (keyword,))
+    res = cur.execute('INSERT OR IGNORE INTO Keywords (Keyword) VALUES(?) RETURNING ID', (keyword,))
 for game in games:
-    res = cur.execute('INSERT INTO Games (Game) VALUES(?) RETURNING ID', (game,))
+    res = cur.execute('INSERT OR IGNORE INTO Games (Game) VALUES(?) RETURNING ID', (game,))
 for finish in finishes:
-    res = cur.execute('INSERT INTO Finishes (Finish) VALUES(?) RETURNING ID', (finish,))
+    res = cur.execute('INSERT OR IGNORE INTO Finishes (Finish) VALUES(?) RETURNING ID', (finish,))
 
-
-num_cards = len(all_data)
+all_data_file.seek(0)
+all_data = ijson.items(all_data_file, 'item', use_float=True)
+num_cards = index + 1
 for index, card in enumerate(all_data):
     if index % 1000 == 0:
-        print(f"{index}/{num_cards} {index/num_cards:.2f}")
+        #print(f"{index}/{num_cards} {index/num_cards:.2f}")
+        pass
     res = cur.execute('SELECT ID FROM Langs WHERE Lang == ?', (card['lang'],))
     lang_id = res.fetchone()[0]
 
@@ -482,7 +507,8 @@ for index, card in enumerate(all_data):
             card['story_spotlight']
             )
 
-    res = cur.execute(insert_statement, values)
+    # values * 2 because of the INSERT part and the UPDATE part
+    res = cur.execute(insert_statement, values * 2)
     card_id = res.fetchone()[0]
 
 
@@ -490,196 +516,31 @@ for index, card in enumerate(all_data):
         res = cur.execute('SELECT ID FROM Colors WHERE Color == ?', (color,))
         color_id = res.fetchone()[0]
 
-        cur.execute('INSERT INTO ColorCards (CardID, ColorId) VALUES(?,?)', (card['id'], color_id,))
+        cur.execute('INSERT OR IGNORE INTO ColorCards (CardID, ColorId) VALUES(?,?)', (card['id'], color_id,))
 
     for color in card['color_identity']:
         res = cur.execute('SELECT ID FROM Colors WHERE Color == ?', (color,))
         color_id = res.fetchone()[0]
 
-        cur.execute('INSERT INTO ColorIdentityCards (CardID, ColorId) VALUES(?,?)', (card['id'], color_id,))
+        cur.execute('INSERT OR IGNORE INTO ColorIdentityCards (CardID, ColorId) VALUES(?,?)', (card['id'], color_id,))
 
     for keyword in card['keywords']:
         res = cur.execute('SELECT ID FROM Keywords WHERE Keyword == ?', (keyword,))
         keyword_id = res.fetchone()[0]
 
-        cur.execute('INSERT INTO KeywordCards (CardID, KeywordID) VALUES(?,?)', (card['id'], keyword_id,))
+        cur.execute('INSERT OR IGNORE INTO KeywordCards (CardID, KeywordID) VALUES(?,?)', (card['id'], keyword_id,))
 
     for game in card['games']:
         res = cur.execute('SELECT ID FROM Games WHERE Game == ?', (game,))
         game_id = res.fetchone()[0]
 
-        cur.execute('INSERT INTO GameCards (CardID, GameID) VALUES(?,?)', (card['id'], game_id,))
+        cur.execute('INSERT OR IGNORE INTO GameCards (CardID, GameID) VALUES(?,?)', (card['id'], game_id,))
 
     for finish in card['finishes']:
         res = cur.execute('SELECT ID FROM Finishes WHERE Finish == ?', (finish,))
         finish_id = res.fetchone()[0]
 
-        cur.execute('INSERT INTO FinishCards (CardID, FinishID) VALUES(?,?)', (card['id'], finish_id,))
+        cur.execute('INSERT OR IGNORE INTO FinishCards (CardID, FinishID) VALUES(?,?)', (card['id'], finish_id,))
 
 con.commit()
-#['object', 'id', 'oracle_id', 'multiverse_ids', 'mtgo_id', 'mtgo_foil_id', 'tcgplayer_id', 'cardmarket_id', 'name', 'lang', 'released_at', 'uri', 'scryfall_uri', 'layout', 'highres_image', 'image_status', 'image_uris', 'mana_cost', 'cmc', 'type_line', 'oracle_text', 'power', 'toughness', 'colors', 'color_identity', 'keywords', 'legalities', 'games', 'reserved', 'foil', 'nonfoil', 'finishes', 'oversized', 'promo', 'reprint', 'variation', 'set_id', 'set', 'set_name', 'set_type', 'set_uri', 'set_search_uri', 'scryfall_set_uri', 'rulings_uri', 'prints_search_uri', 'collector_number', 'digital', 'rarity', 'flavor_text', 'card_back_id', 'artist', 'artist_ids', 'illustration_id', 'border_color', 'frame', 'full_art', 'textless', 'booster', 'story_spotlight', 'edhrec_rank', 'penny_rank', 'prices', 'related_uris']
-
-t = {
-  "object": "card",
-  "id": "0000579f-7b35-4ed3-b44c-db2a538066fe",
-  "oracle_id": "44623693-51d6-49ad-8cd7-140505caf02f",
-  "multiverse_ids": [
-    109722
-  ],
-  "mtgo_id": 25527,
-  "mtgo_foil_id": 25528,
-  "tcgplayer_id": 14240,
-  "cardmarket_id": 13850,
-  "name": "Fury Sliver",
-  "lang": "en",
-  "released_at": "2006-10-06",
-  "uri": "https://api.scryfall.com/cards/0000579f-7b35-4ed3-b44c-db2a538066fe",
-  "scryfall_uri": "https://scryfall.com/card/tsp/157/fury-sliver?utm_source=api",
-  "layout": "normal",
-  "highres_image": True,
-  "image_status": "highres_scan",
-  "image_uris": {
-    "small": "https://cards.scryfall.io/small/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.jpg?1562894979",
-    "normal": "https://cards.scryfall.io/normal/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.jpg?1562894979",
-    "large": "https://cards.scryfall.io/large/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.jpg?1562894979",
-    "png": "https://cards.scryfall.io/png/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.png?1562894979",
-    "art_crop": "https://cards.scryfall.io/art_crop/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.jpg?1562894979",
-    "border_crop": "https://cards.scryfall.io/border_crop/front/0/0/0000579f-7b35-4ed3-b44c-db2a538066fe.jpg?1562894979"
-  },
-  "mana_cost": "{5}{R}",
-  "cmc": 6,
-  "type_line": "Creature — Sliver",
-  "oracle_text": "All Sliver creatures have double strike.",
-  "power": "3",
-  "toughness": "3",
-  "colors": [
-    "R"
-  ],
-  "color_identity": [
-    "R"
-  ],
-  "keywords": [],
-  "legalities": {
-    "standard": "not_legal",
-    "future": "not_legal",
-    "historic": "not_legal",
-    "gladiator": "not_legal",
-    "pioneer": "not_legal",
-    "explorer": "not_legal",
-    "modern": "legal",
-    "legacy": "legal",
-    "pauper": "not_legal",
-    "vintage": "legal",
-    "penny": "legal",
-    "commander": "legal",
-    "brawl": "not_legal",
-    "historicbrawl": "not_legal",
-    "alchemy": "not_legal",
-    "paupercommander": "restricted",
-    "duel": "legal",
-    "oldschool": "not_legal",
-    "premodern": "not_legal"
-  },
-  "games": [
-    "paper",
-    "mtgo"
-  ],
-  "reserved": False,
-  "foil": True,
-  "nonfoil": True,
-  "finishes": [
-    "nonfoil",
-    "foil"
-  ],
-  "oversized": False,
-  "promo": False,
-  "reprint": False,
-  "variation": False,
-  "set_id": "c1d109bc-ffd8-428f-8d7d-3f8d7e648046",
-  "set": "tsp",
-  "set_name": "Time Spiral",
-  "set_type": "expansion",
-  "set_uri": "https://api.scryfall.com/sets/c1d109bc-ffd8-428f-8d7d-3f8d7e648046",
-  "set_search_uri": "https://api.scryfall.com/cards/search?order=set&q=e%3Atsp&unique=prints",
-  "scryfall_set_uri": "https://scryfall.com/sets/tsp?utm_source=api",
-  "rulings_uri": "https://api.scryfall.com/cards/0000579f-7b35-4ed3-b44c-db2a538066fe/rulings",
-  "prints_search_uri": "https://api.scryfall.com/cards/search?order=released&q=oracleid%3A44623693-51d6-49ad-8cd7-140505caf02f&unique=prints",
-  "collector_number": "157",
-  "digital": False,
-  "rarity": "uncommon",
-  "flavor_text": "\"A rift opened, and our arrows were abruptly stilled. To move was to push the world. But the sliver's claw still twitched, red wounds appeared in Thed's chest, and ribbons of blood hung in the air.\"\n—Adom Capashen, Benalish hero",
-  "card_back_id": "0aeebaf5-8c7d-4636-9e82-8c27447861f7",
-  "artist": "Paolo Parente",
-  "artist_ids": [
-    "d48dd097-720d-476a-8722-6a02854ae28b"
-  ],
-  "illustration_id": "2fcca987-364c-4738-a75b-099d8a26d614",
-  "border_color": "black",
-  "frame": "2003",
-  "full_art": False,
-  "textless": False,
-  "booster": True,
-  "story_spotlight": False,
-  "edhrec_rank": 5652,
-  "penny_rank": 10628,
-  "prices": {
-    "usd": "0.30",
-    "usd_foil": "4.50",
-    "usd_etched": None,
-    "eur": "0.16",
-    "eur_foil": "1.84",
-    "tix": "0.02"
-  },
-  "related_uris": {
-    "gatherer": "https://gatherer.wizards.com/Pages/Card/Details.aspx?multiverseid=109722",
-    "tcgplayer_infinite_articles": "https://infinite.tcgplayer.com/search?contentMode=article&game=magic&partner=scryfall&q=Fury+Sliver&utm_campaign=affiliate&utm_medium=api&utm_source=scryfall",
-    "tcgplayer_infinite_decks": "https://infinite.tcgplayer.com/search?contentMode=deck&game=magic&partner=scryfall&q=Fury+Sliver&utm_campaign=affiliate&utm_medium=api&utm_source=scryfall",
-    "edhrec": "https://edhrec.com/route/?cc=Fury+Sliver"
-  }
-}
-
-faces = [
-    {
-      "object": "card_face",
-      "name": "Spikefield Hazard",
-      "mana_cost": "{R}",
-      "type_line": "Instant",
-      "oracle_text": "Spikefield Hazard deals 1 damage to any target. If a permanent dealt damage this way would die this turn, exile it instead.",
-      "colors": [
-        "R"
-      ],
-      "flavor_text": "\"Stop screaming! You'll only bring down more spikes.\"\n—Raff Slugeater, goblin shortcutter",
-      "artist": "Tomasz Jedruszek",
-      "artist_id": "bba69285-2445-4a4b-a847-59397be972ea",
-      "illustration_id": "41ff249a-5698-43da-880b-9a880ef84937",
-      "image_uris": {
-        "small": "https://cards.scryfall.io/small/front/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.jpg?1604198070",
-        "normal": "https://cards.scryfall.io/normal/front/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.jpg?1604198070",
-        "large": "https://cards.scryfall.io/large/front/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.jpg?1604198070",
-        "png": "https://cards.scryfall.io/png/front/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.png?1604198070",
-        "art_crop": "https://cards.scryfall.io/art_crop/front/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.jpg?1604198070",
-        "border_crop": "https://cards.scryfall.io/border_crop/front/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.jpg?1604198070"
-      }
-    },
-    {
-      "object": "card_face",
-      "name": "Spikefield Cave",
-      "flavor_name": "",
-      "mana_cost": "",
-      "type_line": "Land",
-      "oracle_text": "Spikefield Cave enters the battlefield tapped.\n{T}: Add {R}.",
-      "colors": [],
-      "flavor_text": "\"Silence until we're through. Even a whisper's echo can dislodge death from above.\"\n—Raff Slugeater, goblin shortcutter",
-      "artist": "Tomasz Jedruszek",
-      "artist_id": "bba69285-2445-4a4b-a847-59397be972ea",
-      "illustration_id": "0f0c1e52-06d8-4129-af66-97ec23586721",
-      "image_uris": {
-        "small": "https://cards.scryfall.io/small/back/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.jpg?1604198070",
-        "normal": "https://cards.scryfall.io/normal/back/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.jpg?1604198070",
-        "large": "https://cards.scryfall.io/large/back/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.jpg?1604198070",
-        "png": "https://cards.scryfall.io/png/back/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.png?1604198070",
-        "art_crop": "https://cards.scryfall.io/art_crop/back/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.jpg?1604198070",
-        "border_crop": "https://cards.scryfall.io/border_crop/back/a/6/a69541db-3f4e-412f-aa8e-dec1e74f74dc.jpg?1604198070"
-      }
-    }
-  ]
+con.close()
