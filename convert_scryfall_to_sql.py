@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-import sqlite3, ijson, sys, os
+import psycopg, ijson, sys, os, timeit
 
 if len(sys.argv) != 3:
     print("Expected exactly two arguments, the path to the ALL data and the path to the DEFAULT data")
@@ -31,178 +31,92 @@ for card in default_data:
 #if os.path.exists('all.db'):
 #    os.remove('all.db')
 
-con = sqlite3.connect('all.db')
+con = psycopg.connect(user = "postgres", password = "password", host = "127.0.0.1", port = "5432")
+
+#con = psycopg.connect('all.db')
 cur = con.cursor()
+
+#cur.execute('PRAGMA foreign_keys = ON')
+now = timeit.default_timer()
 
 cur.execute('''CREATE TABLE IF NOT EXISTS Langs
             (
-            ID   INTEGER PRIMARY KEY AUTOINCREMENT,
+            ID   INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             Lang VARCHAR             NOT NULL UNIQUE
             )
             ''')
 
+
 cur.execute('''CREATE TABLE IF NOT EXISTS Layouts
             (
-            ID     INTEGER     PRIMARY KEY AUTOINCREMENT,
+            ID     INTEGER     PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             Layout VARCHAR                 NOT NULL UNIQUE
             )
             ''')
 
+
 cur.execute('''CREATE TABLE IF NOT EXISTS ImageStatuses
             (
-            ID          INTEGER     PRIMARY KEY AUTOINCREMENT,
+            ID          INTEGER     PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             ImageStatus VARCHAR                 NOT NULL UNIQUE
             )
             ''')
 
+
 cur.execute('''CREATE TABLE IF NOT EXISTS Legalities
             (
-            ID       INTEGER     PRIMARY KEY AUTOINCREMENT,
+            ID       INTEGER     PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             Legality VARCHAR                 NOT NULL UNIQUE
             )
             ''')
 
+
 cur.execute('''CREATE TABLE IF NOT EXISTS SetTypes
             (
-            ID   INTEGER PRIMARY KEY AUTOINCREMENT,
+            ID   INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             Type VARCHAR             NOT NULL UNIQUE
             )
             ''')
+
 
 cur.execute('''CREATE TABLE IF NOT EXISTS Sets
             (
             ID           UUID    PRIMARY KEY             NOT NULL,
             Name         VARCHAR                         NOT NULL UNIQUE,
-            TypeID       INTEGER REFERENCES SetTypes(id) NOT NULL,
+            TypeID       INTEGER REFERENCES SetTypes(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
             Abbreviation VARCHAR                         NOT NULL UNIQUE
             )
             ''')
 
+
 cur.execute('''CREATE TABLE IF NOT EXISTS Rarities
             (
-            ID     INTEGER     PRIMARY KEY AUTOINCREMENT,
+            ID     INTEGER     PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             Rarity VARCHAR                 NOT NULL UNIQUE
             )
             ''')
 
+
 cur.execute('''CREATE TABLE IF NOT EXISTS BorderColors
             (
-            ID          INTEGER     PRIMARY KEY AUTOINCREMENT,
+            ID          INTEGER     PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             BorderColor VARCHAR             NOT NULL UNIQUE
             )
             ''')
 
+
 cur.execute('''CREATE TABLE IF NOT EXISTS Frames
             (
-            ID    INTEGER     PRIMARY KEY AUTOINCREMENT,
+            ID    INTEGER     PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             Frame VARCHAR                 NOT NULL UNIQUE
             )
             ''')
-# Why UNIQUE(CardID, Name, NormalImageURI)
-# CardID + Name isn't sufficent because of SLD Stitch in Time (and others)
-# CardID + NormalImageURI isn't sufficent because NormalImageURI is NULL
-# when both "faces" are on the same side of the card (ex. aftermath cards)
-# TODO: Needs colors junction
-cur.execute('''CREATE TABLE IF NOT EXISTS Faces
-            (
-            ID             INTEGER PRIMARY KEY          AUTOINCREMENT,
-            CardID         UUID    REFERENCES Cards(id)      NOT NULL,
-            Name           VARCHAR                           NOT NULL,
-            ManaCost       VARCHAR                           NOT NULL,
-            TypeLine       VARCHAR                                   ,
-            OracleText     VARCHAR                           NOT NULL,
-            FlavorText     VARCHAR                                   ,
-            Artist         VARCHAR                                   ,
-            ArtistID       UUID                                      ,
-            IllustrationID UUID                                      ,
-            NormalImageURI VARCHAR                                   ,
-            UNIQUE(CardID, Name, ManaCost, OracleText, IllustrationID)
-            )
-            ''')
 
-# We _could_ make a table for the MultiverseIDs and
-# have this be forign keys to each table, but that seems
-# unnecessary
-cur.execute('''CREATE TABLE IF NOT EXISTS MultiverseIDCards
-            (
-            ID           INTEGER PRIMARY KEY         ,
-            CardID       UUID                NOT NULL,
-            MultiverseID INTEGER             NOT NULL
-            )
-            ''')
 
-# The (1) is ignored in sqlite, but
-# it's nice just to have
 cur.execute('''CREATE TABLE IF NOT EXISTS Colors
             (
-            ID    INTEGER PRIMARY KEY,
+            ID    INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             Color CHAR(1) NOT NULL UNIQUE
-            )
-            ''')
-
-cur.execute('''CREATE TABLE IF NOT EXISTS ColorCards
-            (
-            ID      INTEGER  PRIMARY KEY,
-            CardID  UUID     NOT NULL,
-            ColorID INTEGER  NOT NULL,
-            UNIQUE(CardID, ColorID)
-            )
-            ''')
-
-cur.execute('''CREATE TABLE IF NOT EXISTS ColorIdentityCards
-            (
-            ID      INTEGER  PRIMARY KEY,
-            CardID  UUID     NOT NULL,
-            ColorID INTEGER  NOT NULL,
-            UNIQUE(CardID, ColorID)
-            )
-            ''')
-
-cur.execute('''CREATE TABLE IF NOT EXISTS Keywords
-            (
-            ID      INTEGER PRIMARY KEY,
-            Keyword VARCHAR NOT NULL UNIQUE
-            )
-            ''')
-
-cur.execute('''CREATE TABLE IF NOT EXISTS KeywordCards
-            (
-            ID        INTEGER PRIMARY KEY,
-            CardID    UUID    NOT NULL,
-            KeywordID INTEGER NOT NULL,
-            UNIQUE(CardID, KeywordID)
-            )
-            ''')
-
-cur.execute('''CREATE TABLE IF NOT EXISTS Games
-            (
-            ID   INTEGER PRIMARY KEY,
-            Game VARCHAR NOT NULL UNIQUE
-            )
-            ''')
-
-cur.execute('''CREATE TABLE IF NOT EXISTS GameCards
-            (
-            ID     INTEGER PRIMARY KEY,
-            CardID UUID    NOT NULL,
-            GameID INTEGER NOT NULL,
-            UNIQUE(CardID, GameID)
-            )
-            ''')
-
-cur.execute('''CREATE TABLE IF NOT EXISTS Finishes
-            (
-            ID     INTEGER PRIMARY KEY,
-            Finish VARCHAR NOT NULL UNIQUE 
-            )
-            ''')
-
-cur.execute('''CREATE TABLE IF NOT EXISTS FinishCards
-            (
-            ID       INTEGER PRIMARY KEY,
-            CardID   UUID    NOT NULL,
-            FinishID INTEGER NOT NULL,
-            UNIQUE(CardID, FinishID)
             )
             ''')
 
@@ -216,7 +130,7 @@ cur.execute('''CREATE TABLE IF NOT EXISTS FinishCards
 # but sometimes they are :shrug:
 #
 # DefaultLang is the only column that's calculated
-cur.execute('''CREATE TABLE IF NOT EXISTS Cards
+cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS Cards
                (
                ID                      UUID        PRIMARY KEY                               NOT NULL,
                OracleID                UUID                                                          ,
@@ -225,52 +139,52 @@ cur.execute('''CREATE TABLE IF NOT EXISTS Cards
                TcgplayerID             INTEGER                                                       ,
                CardmarketID            INTEGER                                                       ,
                Name                    VARCHAR                                               NOT NULL,
-               LangID                  INTEGER                 REFERENCES Langs(id)          NOT NULL,
+               LangID                  INTEGER                 REFERENCES Langs(id) DEFERRABLE INITIALLY DEFERRED          NOT NULL,
                DefaultLang             BOOLEAN                                               NOT NULL,
                ReleasedAt              DATE                                                  NOT NULL,
-               LayoutID                INTEGER                 REFERENCES Layouts(id)        NOT NULL,
+               LayoutID                INTEGER                 REFERENCES Layouts(id) DEFERRABLE INITIALLY DEFERRED        NOT NULL,
                HighresImage            BOOLEAN                                               NOT NULL,
-               ImageStatusID           INTEGER                 REFERENCES ImageStatuses(id)  NOT NULL,
+               ImageStatusID           INTEGER                 REFERENCES ImageStatuses(id) DEFERRABLE INITIALLY DEFERRED  NOT NULL,
                NormalImageURI          VARCHAR                                                       ,
                ManaCost                VARCHAR                                                       ,
-               Cmc                     INTEGER                                                       ,
+               Cmc                     REAL                                                          ,
                TypeLine                VARCHAR                                                       ,
                OracleText              VARCHAR                                                       ,
                Power                   VARCHAR                                                       ,
                Toughness               VARCHAR                                                       ,
-               LegalStandardID         INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalFutureID           INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalHistoricID         INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalGladiatorID        INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalPioneerID          INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalExplorerID         INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalModernID           INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalLegacyID           INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalPauperID           INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalVintageID          INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalPennyID            INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalCommanderID        INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalBrawlID            INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalHistoricBrawlID    INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalAlchemyID          INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalPauperCommanderID  INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalDuelID             INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalOldschoolID        INTEGER                 REFERENCES Legalities(id)     NOT NULL,
-               LegalPremodernID        INTEGER                 REFERENCES Legalities(id)     NOT NULL,
+               LegalStandardID         INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalFutureID           INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalHistoricID         INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalGladiatorID        INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalPioneerID          INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalExplorerID         INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalModernID           INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalLegacyID           INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalPauperID           INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalVintageID          INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalPennyID            INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalCommanderID        INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalBrawlID            INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalHistoricBrawlID    INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalAlchemyID          INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalPauperCommanderID  INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalDuelID             INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalOldschoolID        INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
+               LegalPremodernID        INTEGER                 REFERENCES Legalities(id) DEFERRABLE INITIALLY DEFERRED     NOT NULL,
                Reserved                BOOLEAN                                               NOT NULL,
                Oversized               BOOLEAN                                               NOT NULL,
                Promo                   BOOLEAN                                               NOT NULL,
                Reprint                 BOOLEAN                                               NOT NULL,
                Variation               BOOLEAN                                               NOT NULL,
-               SetID                   UUID                    REFERENCES Sets(id)           NOT NULL,
+               SetID                   UUID                    REFERENCES Sets(id) DEFERRABLE INITIALLY DEFERRED           NOT NULL,
                CollectorNumber         VARCHAR                                               NOT NULL,
                Digital                 BOOLEAN                                               NOT NULL,
-               RarityID                INTEGER                 REFERENCES Rarities(id)       NOT NULL,
+               RarityID                INTEGER                 REFERENCES Rarities(id) DEFERRABLE INITIALLY DEFERRED       NOT NULL,
                FlavorText              VARCHAR                                                       ,
                Artist                  VARCHAR                                                       ,
                IllustrationID          UUID                                                          ,
-               BorderColorID           INTEGER                 REFERENCES BorderColors(id)   NOT NULL,
-               FrameID                 INTEGER                 REFERENCES Frames(id)         NOT NULL,
+               BorderColorID           INTEGER                 REFERENCES BorderColors(id) DEFERRABLE INITIALLY DEFERRED   NOT NULL,
+               FrameID                 INTEGER                 REFERENCES Frames(id) DEFERRABLE INITIALLY DEFERRED         NOT NULL,
                FullArt                 BOOLEAN                                               NOT NULL,
                Textless                BOOLEAN                                               NOT NULL,
                Booster                 BOOLEAN                                               NOT NULL,
@@ -279,11 +193,146 @@ cur.execute('''CREATE TABLE IF NOT EXISTS Cards
              ''')
 
 
+
+# Why UNIQUE(CardID, Name, NormalImageURI)
+# CardID + Name isn't sufficent because of SLD Stitch in Time (and others)
+# CardID + NormalImageURI isn't sufficent because NormalImageURI is NULL
+# when both "faces" are on the same side of the card (ex. aftermath cards)
+# TODO: Needs colors junction
+cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS Faces
+            (
+            ID             INTEGER PRIMARY KEY          GENERATED ALWAYS AS IDENTITY,
+            CardID         UUID    REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED      NOT NULL,
+            Name           VARCHAR                           NOT NULL,
+            ManaCost       VARCHAR                           NOT NULL,
+            TypeLine       VARCHAR                                   ,
+            OracleText     VARCHAR                           NOT NULL,
+            FlavorText     VARCHAR                                   ,
+            Artist         VARCHAR                                   ,
+            ArtistID       UUID                                      ,
+            IllustrationID UUID                                      ,
+            NormalImageURI VARCHAR
+            )
+            ''')
+
+
+# We _could_ make a table for the MultiverseIDs and
+# have this be forign keys to each table, but that seems
+# unnecessary
+cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS MultiverseIDCards
+            (
+            ID           INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            CardID       UUID    REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            MultiverseID INTEGER                      NOT NULL
+            )
+            ''')
+
+
+cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS ColorCards
+            (
+            ID      INTEGER  PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            CardID  UUID     REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            ColorID INTEGER  REFERENCES Colors(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            UNIQUE(CardID, ColorID)
+            )
+            ''')
+
+
+cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS ColorIdentityCards
+            (
+            ID      INTEGER  PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            CardID  UUID     REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            ColorID INTEGER  REFERENCES Colors(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            UNIQUE(CardID, ColorID)
+            )
+            ''')
+
+
+cur.execute('''CREATE TABLE IF NOT EXISTS Keywords
+            (
+            ID      INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            Keyword VARCHAR NOT NULL UNIQUE
+            )
+            ''')
+
+
+cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS KeywordCards
+            (
+            ID        INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            CardID    UUID    REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            KeywordID INTEGER REFERENCES Keywords(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            UNIQUE(CardID, KeywordID)
+            )
+            ''')
+
+
+cur.execute('''CREATE TABLE IF NOT EXISTS Games
+            (
+            ID   INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            Game VARCHAR NOT NULL UNIQUE
+            )
+            ''')
+
+
+cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS GameCards
+            (
+            ID     INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            CardID UUID    REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            GameID INTEGER REFERENCES Games(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            UNIQUE(CardID, GameID)
+            )
+            ''')
+
+
+cur.execute('''CREATE TABLE IF NOT EXISTS Finishes
+            (
+            ID     INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            Finish VARCHAR NOT NULL UNIQUE 
+            )
+            ''')
+
+
+cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS FinishCards
+            (
+            ID       INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            CardID   UUID    REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            FinishID INTEGER REFERENCES Finishes(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            UNIQUE(CardID, FinishID)
+            )
+            ''')
+
+
+print(f"Create tables took {timeit.default_timer() - now:.2f} seconds")
+now = timeit.default_timer()
+
+cur.execute('DELETE FROM Layouts;')
+cur.execute('DELETE FROM ImageStatuses;')
+cur.execute('DELETE FROM Legalities;')
+cur.execute('DELETE FROM SetTypes;')
+cur.execute('DELETE FROM Sets;')
+cur.execute('DELETE FROM Rarities;')
+cur.execute('DELETE FROM BorderColors;')
+cur.execute('DELETE FROM Frames;')
+cur.execute('DELETE FROM Colors;')
+cur.execute('DELETE FROM Cards;')
+cur.execute('DELETE FROM Faces;')
+cur.execute('DELETE FROM MultiverseIDCards;')
+cur.execute('DELETE FROM ColorCards;')
+cur.execute('DELETE FROM ColorIdentityCards;')
+cur.execute('DELETE FROM Keywords;')
+cur.execute('DELETE FROM KeywordCards;')
+cur.execute('DELETE FROM Games;')
+cur.execute('DELETE FROM GameCards;')
+cur.execute('DELETE FROM Finishes;')
+cur.execute('DELETE FROM FinishCards;')
+cur.execute('DELETE FROM Langs;')
+
+print(f"DELETE tables took {timeit.default_timer() - now:.2f} seconds")
+now = timeit.default_timer()
+
 insert_statement = '''INSERT INTO Cards(ID, OracleID, MtgoID, MtgoFoilID, TcgplayerID, CardmarketID, Name, LangID, DefaultLang, ReleasedAt, LayoutID, HighresImage, ImageStatusID, NormalImageURI, ManaCost, Cmc, TypeLine, OracleText, Power, Toughness, LegalStandardID, LegalFutureID, LegalHistoricID, LegalGladiatorID, LegalPioneerID, LegalExplorerID, LegalModernID, LegalLegacyID, LegalPauperID, LegalVintageID, LegalPennyID, LegalCommanderID, LegalBrawlID, LegalHistoricBrawlID, LegalAlchemyID, LegalPauperCommanderID, LegalDuelID, LegalOldschoolID, LegalPremodernID, Reserved, Oversized, Promo, Reprint, Variation, SetID, CollectorNumber, Digital, RarityID, FlavorText, Artist, IllustrationID, BorderColorID, FrameID, FullArt, Textless, Booster, StorySpotlight)
-                    VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
-                    ON CONFLICT(ID) DO
-                        UPDATE
-                        SET ID = ?, OracleID = ?, MtgoID = ?, MtgoFoilID = ?, TcgplayerID = ?, CardmarketID = ?, Name = ?, LangID = ?, DefaultLang = ?, ReleasedAt = ?, LayoutID = ?, HighresImage = ?, ImageStatusID = ?, NormalImageURI = ?, ManaCost = ?, Cmc = ?, TypeLine = ?, OracleText = ?, Power = ?, Toughness = ?, LegalStandardID = ?, LegalFutureID = ?, LegalHistoricID = ?, LegalGladiatorID = ?, LegalPioneerID = ?, LegalExplorerID = ?, LegalModernID = ?, LegalLegacyID = ?, LegalPauperID = ?, LegalVintageID = ?, LegalPennyID = ?, LegalCommanderID = ?, LegalBrawlID = ?, LegalHistoricBrawlID = ?, LegalAlchemyID = ?, LegalPauperCommanderID = ?, LegalDuelID = ?, LegalOldschoolID = ?, LegalPremodernID = ?, Reserved = ?, Oversized = ?, Promo = ?, Reprint = ?, Variation = ?, SetID = ?, CollectorNumber = ?, Digital = ?, RarityID = ?, FlavorText = ?, Artist = ?, IllustrationID = ?, BorderColorID = ?, FrameID = ?, FullArt = ?, Textless = ?, Booster = ?, StorySpotlight = ? RETURNING ID'''
+                    VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)
+                    RETURNING ID'''
 
 # First pass to gather all data to put in the small tables
 langs = set()
@@ -348,199 +397,259 @@ for index, card in enumerate(all_data):
     for finish in card['finishes']:
         finishes.add(finish)
 
+print(f"Discovering data took {timeit.default_timer() - now:.2f} seconds")
+now = timeit.default_timer()
+
+# Maps value to ID in database so we don't have to SELECT later
+langs_id_map = {}
+layouts_id_map = {}
+image_statuses_id_map = {}
+rarities_id_map = {}
+border_colors_id_map = {}
+frames_id_map = {}
+set_types_id_map = {}
+legalities_id_map = {}
+sets_id_map = {}
+faces_id_map = {}
+colors_id_map = {}
+keywords_id_map = {}
+games_id_map = {}
+finishes_id_map = {}
+
+
 for lang in langs:
-    res = cur.execute('INSERT OR IGNORE INTO Langs (Lang) VALUES(?) RETURNING ID', (lang,))
+    res = cur.execute('INSERT INTO Langs (Lang) VALUES(%s) RETURNING ID', (lang,))
+    id_ = res.fetchone()[0]
+    langs_id_map[lang] = id_
 for layout in layouts:
-    res = cur.execute('INSERT OR IGNORE INTO Layouts (Layout) VALUES(?) RETURNING ID', (layout,))
+    res = cur.execute('INSERT INTO Layouts (Layout) VALUES(%s) RETURNING ID', (layout,))
+    id_ = res.fetchone()[0]
+    layouts_id_map[layout] = id_
 for image_status in image_statuses:
-    res = cur.execute('INSERT OR IGNORE INTO ImageStatuses (ImageStatus) VALUES(?) RETURNING ID', (image_status,))
+    res = cur.execute('INSERT INTO ImageStatuses (ImageStatus) VALUES(%s) RETURNING ID', (image_status,))
+    id_ = res.fetchone()[0]
+    image_statuses_id_map[image_status] = id_
 for rarity in rarities:
-    res = cur.execute('INSERT OR IGNORE INTO Rarities (Rarity) VALUES(?) RETURNING ID', (rarity,))
+    res = cur.execute('INSERT INTO Rarities (Rarity) VALUES(%s) RETURNING ID', (rarity,))
+    id_ = res.fetchone()[0]
+    rarities_id_map[rarity] = id_
 for border_color in border_colors:
-    res = cur.execute('INSERT OR IGNORE INTO BorderColors (BorderColor) VALUES(?) RETURNING ID', (border_color,))
+    res = cur.execute('INSERT INTO BorderColors (BorderColor) VALUES(%s) RETURNING ID', (border_color,))
+    id_ = res.fetchone()[0]
+    border_colors_id_map[border_color] = id_
 for frame in frames: 
-    res = cur.execute('INSERT OR IGNORE INTO Frames (Frame) VALUES(?) RETURNING ID', (frame,))
+    res = cur.execute('INSERT INTO Frames (Frame) VALUES(%s) RETURNING ID', (frame,))
+    id_ = res.fetchone()[0]
+    frames_id_map[frame] = id_
 for set_type in set_types:
-    res = cur.execute('INSERT OR IGNORE INTO SetTypes (Type) VALUES(?) RETURNING ID', (set_type,))
+    res = cur.execute('INSERT INTO SetTypes (Type) VALUES(%s) RETURNING ID', (set_type,))
+    id_ = res.fetchone()[0]
+    set_types_id_map[set_type] = id_
 for legality in legalities:
-    res = cur.execute('INSERT OR IGNORE INTO Legalities (Legality) VALUES(?) RETURNING ID', (legality,))
+    res = cur.execute('INSERT INTO Legalities (Legality) VALUES(%s) RETURNING ID', (legality,))
+    id_ = res.fetchone()[0]
+    legalities_id_map[legality] = id_
 for set_ in sets:
-    res = cur.execute('SELECT ID FROM SetTypes WHERE Type == ?', (set_[2],))
+    res = cur.execute('SELECT ID FROM SetTypes WHERE Type = %s', (set_[2],))
     set_type_id = res.fetchone()[0]
-    res = cur.execute('INSERT OR IGNORE INTO Sets (ID, Name, TypeID, Abbreviation) VALUES(?,?,?,?) RETURNING ID', (set_[0], set_[1], set_type_id, set_[3],))
-for face in faces:
-    res = cur.execute('INSERT OR IGNORE INTO Faces (CardID, Name, ManaCost, TypeLine, OracleText, FlavorText, Artist, ArtistID, IllustrationID, NormalImageURI) VALUES(?,?,?,?,?,?,?,?,?,?) RETURNING ID', face)
-    row = res.fetchone()
-    if row != None:
-        #print(row)
-        pass
-    else:
-        print(face)
-        pass
+    res = cur.execute('INSERT INTO Sets (ID, Name, TypeID, Abbreviation) VALUES(%s,%s,%s,%s) RETURNING ID', (set_[0], set_[1], set_type_id, set_[3],))
+    id_ = res.fetchone()[0]
+    sets_id_map[set_[1]] = id_
 for color in colors:
-    res = cur.execute('INSERT OR IGNORE INTO Colors (Color) VALUES(?) RETURNING ID', (color,))
+    res = cur.execute('INSERT INTO Colors (Color) VALUES(%s) RETURNING ID', (color,))
+    id_ = res.fetchone()[0]
+    colors_id_map[color] = id_
 for keyword in keywords:
-    res = cur.execute('INSERT OR IGNORE INTO Keywords (Keyword) VALUES(?) RETURNING ID', (keyword,))
+    res = cur.execute('INSERT INTO Keywords (Keyword) VALUES(%s) RETURNING ID', (keyword,))
+    id_ = res.fetchone()[0]
+    keywords_id_map[keyword ] = id_
 for game in games:
-    res = cur.execute('INSERT OR IGNORE INTO Games (Game) VALUES(?) RETURNING ID', (game,))
+    res = cur.execute('INSERT INTO Games (Game) VALUES(%s) RETURNING ID', (game,))
+    id_ = res.fetchone()[0]
+    games_id_map[game] = id_
 for finish in finishes:
-    res = cur.execute('INSERT OR IGNORE INTO Finishes (Finish) VALUES(?) RETURNING ID', (finish,))
+    res = cur.execute('INSERT INTO Finishes (Finish) VALUES(%s) RETURNING ID', (finish,))
+    id_ = res.fetchone()[0]
+    finishes_id_map[finish] = id_
+
+
+color_cards = []
+color_identity_cards = []
+keyword_cards = []
+game_cards = []
+finish_cards = []
+
+print(f"INSERT (non-cards, non-faces) took {timeit.default_timer() - now:.2f} seconds")
+now = timeit.default_timer()
 
 all_data_file.seek(0)
 all_data = ijson.items(all_data_file, 'item', use_float=True)
 num_cards = index + 1
-for index, card in enumerate(all_data):
-    if index % 1000 == 0:
-        #print(f"{index}/{num_cards} {index/num_cards:.2f}")
-        pass
-    res = cur.execute('SELECT ID FROM Langs WHERE Lang == ?', (card['lang'],))
-    lang_id = res.fetchone()[0]
+with cur.copy("COPY Cards (ID, OracleID, MtgoID, MtgoFoilID, TcgplayerID, CardmarketID, Name, LangID, DefaultLang, ReleasedAt, LayoutID, HighresImage, ImageStatusID, NormalImageURI, ManaCost, Cmc, TypeLine, OracleText, Power, Toughness, LegalStandardID, LegalFutureID, LegalHistoricID, LegalGladiatorID, LegalPioneerID, LegalExplorerID, LegalModernID, LegalLegacyID, LegalPauperID, LegalVintageID, LegalPennyID, LegalCommanderID, LegalBrawlID, LegalHistoricBrawlID, LegalAlchemyID, LegalPauperCommanderID, LegalDuelID, LegalOldschoolID, LegalPremodernID, Reserved, Oversized, Promo, Reprint, Variation, SetID, CollectorNumber, Digital, RarityID, FlavorText, Artist, IllustrationID, BorderColorID, FrameID, FullArt, Textless, Booster, StorySpotlight) FROM STDIN") as copy:
+    for index, card in enumerate(all_data):
+        if index % 1000 == 0:
+            print(f"{index}/{num_cards} {index/num_cards:.2f}")
+            pass
+        lang_id = langs_id_map[card['lang']]
 
-    res = cur.execute('SELECT ID FROM Layouts WHERE Layout == ?', (card['layout'],))
-    layout_id = res.fetchone()[0]
+        layout_id = layouts_id_map[card['layout']]
 
-    res = cur.execute('SELECT ID FROM ImageStatuses WHERE ImageStatus == ?', (card['image_status'],))
-    image_status_id = res.fetchone()[0]
+        image_status_id = image_statuses_id_map[card['image_status']]
 
-    res = cur.execute('SELECT ID FROM Rarities WHERE Rarity == ?', (card['rarity'],))
-    rarity_id = res.fetchone()[0]
+        rarity_id = rarities_id_map[card['rarity']]
 
-    res = cur.execute('SELECT ID FROM BorderColors WHERE BorderColor == ?', (card['border_color'],))
-    border_color_id = res.fetchone()[0]
+        border_color_id = border_colors_id_map[card['border_color']]
 
-    res = cur.execute('SELECT ID FROM Frames WHERE Frame == ?', (card['frame'],))
-    frame_id = res.fetchone()[0]
+        frame_id = frames_id_map[card['frame']]
 
-    formats = ['standard',
-               'future',
-               'historic',
-               'gladiator',
-               'pioneer',
-               'explorer',
-               'modern',
-               'legacy',
-               'pauper',
-               'vintage',
-               'penny',
-               'commander',
-               'brawl',
-               'historicbrawl',
-               'alchemy',
-               'paupercommander',
-               'duel',
-               'oldschool',
-               'premodern']
+        formats = ['standard',
+                   'future',
+                   'historic',
+                   'gladiator',
+                   'pioneer',
+                   'explorer',
+                   'modern',
+                   'legacy',
+                   'pauper',
+                   'vintage',
+                   'penny',
+                   'commander',
+                   'brawl',
+                   'historicbrawl',
+                   'alchemy',
+                   'paupercommander',
+                   'duel',
+                   'oldschool',
+                   'premodern']
 
-    legalities = {}
-    # format is a built-in
-    for format_ in formats:
-        res = cur.execute('SELECT ID FROM Legalities WHERE Legality == ?', (card['legalities'][format_],))
-        legality_id = res.fetchone()[0]
+        legalities = {}
+        # format is a built-in
+        for format_ in formats:
+            legality_id = legalities_id_map[card['legalities'][format_]]
 
-        legalities[format_] = legality_id
+            legalities[format_] = legality_id
 
-    res = cur.execute('SELECT ID FROM SetTypes WHERE Type == ?', (card['set_type'],))
-    set_type_id = res.fetchone()[0]
+        set_type_id = set_types_id_map[card['set_type']]
 
-    res = cur.execute('SELECT ID FROM Sets WHERE Name == ?', (card['set_name'],))
-    set_id = res.fetchone()[0]
+        set_id = sets_id_map[card['set_name']]
 
-    default = card['id'] in default_set
+        default = card['id'] in default_set
 
-    values = (
-            card['id'],
-            card.get('oracle_id'),
-            card.get('mtgo_id'),
-            card.get('mtgo_foil_id'),
-            card.get('tcgplayer_id'),
-            card.get('cardmarket_id'),
-            card['name'],
-            lang_id,
-            default,
-            card['released_at'],
-            layout_id,
-            card['highres_image'],
-            image_status_id,
-            card['image_uris']['normal'] if card.get('image_uris') else None,
-            card.get('mana_cost'),
-            card.get('cmc'),
-            card.get('type_line'),
-            card.get('oracle_text'),
-            card.get('power'),
-            card.get('toughness'),
-            legalities['standard'],
-            legalities['future'],
-            legalities['historic'],
-            legalities['gladiator'],
-            legalities['pioneer'],
-            legalities['explorer'],
-            legalities['modern'],
-            legalities['legacy'],
-            legalities['pauper'],
-            legalities['vintage'],
-            legalities['penny'],
-            legalities['commander'],
-            legalities['brawl'],
-            legalities['historicbrawl'],
-            legalities['alchemy'],
-            legalities['paupercommander'],
-            legalities['duel'],
-            legalities['oldschool'],
-            legalities['premodern'],
-            card['reserved'],
-            card['oversized'],
-            card['promo'],
-            card['reprint'],
-            card['variation'],
-            set_id,
-            card['collector_number'],
-            card['digital'],
-            rarity_id,
-            card.get('flavor_text'),
-            card.get('artist'),
-            card.get('illustration_id'),
-            border_color_id,
-            frame_id,
-            card['full_art'],
-            card['textless'],
-            card['booster'],
-            card['story_spotlight']
-            )
+        values = (
+                card['id'],
+                card.get('oracle_id'),
+                card.get('mtgo_id'),
+                card.get('mtgo_foil_id'),
+                card.get('tcgplayer_id'),
+                card.get('cardmarket_id'),
+                card['name'],
+                lang_id,
+                default,
+                card['released_at'],
+                layout_id,
+                card['highres_image'],
+                image_status_id,
+                card['image_uris']['normal'] if card.get('image_uris') else None,
+                card.get('mana_cost'),
+                card.get('cmc'),
+                card.get('type_line'),
+                card.get('oracle_text'),
+                card.get('power'),
+                card.get('toughness'),
+                legalities['standard'],
+                legalities['future'],
+                legalities['historic'],
+                legalities['gladiator'],
+                legalities['pioneer'],
+                legalities['explorer'],
+                legalities['modern'],
+                legalities['legacy'],
+                legalities['pauper'],
+                legalities['vintage'],
+                legalities['penny'],
+                legalities['commander'],
+                legalities['brawl'],
+                legalities['historicbrawl'],
+                legalities['alchemy'],
+                legalities['paupercommander'],
+                legalities['duel'],
+                legalities['oldschool'],
+                legalities['premodern'],
+                card['reserved'],
+                card['oversized'],
+                card['promo'],
+                card['reprint'],
+                card['variation'],
+                set_id,
+                card['collector_number'],
+                card['digital'],
+                rarity_id,
+                card.get('flavor_text'),
+                card.get('artist'),
+                card.get('illustration_id'),
+                border_color_id,
+                frame_id,
+                card['full_art'],
+                card['textless'],
+                card['booster'],
+                card['story_spotlight']
+                )
 
-    # values * 2 because of the INSERT part and the UPDATE part
-    res = cur.execute(insert_statement, values * 2)
-    card_id = res.fetchone()[0]
+        res = copy.write_row(values)
+        #card_id = res.fetchone()[0]
 
 
-    for color in card.get('colors', []):
-        res = cur.execute('SELECT ID FROM Colors WHERE Color == ?', (color,))
-        color_id = res.fetchone()[0]
+        for color in card.get('colors', []):
+            color_id = colors_id_map[color]
+            color_cards.append((card['id'], color_id))
 
-        cur.execute('INSERT OR IGNORE INTO ColorCards (CardID, ColorId) VALUES(?,?)', (card['id'], color_id,))
+        for color in card['color_identity']:
+            color_id = colors_id_map[color]
+            color_identity_cards.append((card['id'], color_id))
 
-    for color in card['color_identity']:
-        res = cur.execute('SELECT ID FROM Colors WHERE Color == ?', (color,))
-        color_id = res.fetchone()[0]
+        for keyword in card['keywords']:
+            keyword_id = keywords_id_map[keyword]
+            keyword_cards.append((card['id'], keyword_id))
 
-        cur.execute('INSERT OR IGNORE INTO ColorIdentityCards (CardID, ColorId) VALUES(?,?)', (card['id'], color_id,))
+        for game in card['games']:
+            game_id = games_id_map[game]
+            game_cards.append((card['id'], game_id))
 
-    for keyword in card['keywords']:
-        res = cur.execute('SELECT ID FROM Keywords WHERE Keyword == ?', (keyword,))
-        keyword_id = res.fetchone()[0]
+        for finish in card['finishes']:
+            finish_id = finishes_id_map[finish]
+            finish_cards.append((card['id'], finish_id))
 
-        cur.execute('INSERT OR IGNORE INTO KeywordCards (CardID, KeywordID) VALUES(?,?)', (card['id'], keyword_id,))
 
-    for game in card['games']:
-        res = cur.execute('SELECT ID FROM Games WHERE Game == ?', (game,))
-        game_id = res.fetchone()[0]
+with cur.copy("COPY ColorCards (CardID, ColorID) FROM STDIN") as copy:
+    for card_color in color_cards:
+        copy.write_row(card_color)
 
-        cur.execute('INSERT OR IGNORE INTO GameCards (CardID, GameID) VALUES(?,?)', (card['id'], game_id,))
+with cur.copy("COPY ColorIdentityCards (CardID, ColorID) FROM STDIN") as copy:
+    for card_color in color_identity_cards:
+        copy.write_row(card_color)
 
-    for finish in card['finishes']:
-        res = cur.execute('SELECT ID FROM Finishes WHERE Finish == ?', (finish,))
-        finish_id = res.fetchone()[0]
+with cur.copy("COPY KeywordCards (CardID, KeywordID) FROM STDIN") as copy:
+    for card_keyword in keyword_cards:
+        copy.write_row(card_keyword)
 
-        cur.execute('INSERT OR IGNORE INTO FinishCards (CardID, FinishID) VALUES(?,?)', (card['id'], finish_id,))
+with cur.copy("COPY GameCards (CardID, GameID) FROM STDIN") as copy:
+    for card_game in game_cards:
+        copy.write_row(card_game)
+
+with cur.copy("COPY FinishCards (CardID, FinishID) FROM STDIN") as copy:
+    for card_finish in finish_cards:
+        copy.write_row(card_finish)
+
+print(f"INSERT (cards, and card junction tables) took {timeit.default_timer() - now:.2f} seconds")
+now = timeit.default_timer()
+
+
+for face in faces:
+    res = cur.execute('INSERT INTO Faces (CardID, Name, ManaCost, TypeLine, OracleText, FlavorText, Artist, ArtistID, IllustrationID, NormalImageURI) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)', face)
+
+print(f"INSERT faces took {timeit.default_timer() - now:.2f} seconds")
+now = timeit.default_timer()
 
 con.commit()
+print(f"Commit took {timeit.default_timer() - now:.2f} seconds")
 con.close()
