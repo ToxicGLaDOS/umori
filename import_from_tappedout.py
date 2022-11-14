@@ -4,115 +4,133 @@
 # ---------------------------------------------------------------------------
 # text        |  x  |  x   |                  |    x   |            |
 # multiverse  |     |      |   not directly   |        |            |
-# csv         |  x  |  x   |     wrong???     |    x   |     x      |
-# printable   |  x  |  x   |        x         |    ?   |     x      |
+# csv         |  x  |  x   |        x         |    x   |     x      |
+# printable   |  x  |  x   |        x         |        |     x      |
 
-import re, sys, os, json, time
+# Lightning Helix STA:125 used to show up as STA:62 in csv. This seems to be fixed, but we should watch out for errors in the csv
 
-# Use local scryfall database for this
-def get_default_collectors_number(name, set_abbr):
-    # Tappedout does Turn / Burn
-    # Scryfall  does Turn // Burn
-    if '/' in name and '//' not in name:
-        name = name.replace('/', '//')
-    # Tappedout uses an inconsistent number of _
-    # Scryfall always uses _____
-    name = re.sub('___+', '_____', name)
-    # Tappedout has a typo
-    if name == 'Psuedodragon Familiar':
-        name = 'Pseudodragon Familiar'
-    # Tappedout doesn't care about ñ
-    if name == 'Robo-Pinata':
-        name = 'Robo-Piñata'
-    set_ = sets[set_abbr]
-    cards = [card for card in set_ if card['name'].lower() == name.lower()]
-    # Cards with multiple faces, adventure cards, split cards, etc. will have a combined name
-    # so we have to check the faces
-    if len(cards) == 0:
-        cards_with_faces = [card for card in set_ if card.get('card_faces') != None]
-        cards = [card for card in cards_with_faces if card['card_faces'][0]['name'].lower() == name.lower()]
+import re, psycopg, csv
 
-    # If any collector_numbers are numeric
-    if any([card['collector_number'].isnumeric() for card in cards]):
-        # Filter out the cards with non-numeric collector numbers
-        cards = [card for card in cards if card['collector_number'].isnumeric()]
-        # Sort by collector number as int (sorting by str results in '125' < '64')
-        default = min(cards, key=lambda card: int(card['collector_number']))['collector_number']
-    # ex. Unfinity attractions have all non-numeric collector numbers
-    else:
-        card = min(cards, key=lambda card: card['collector_number'])
-        default = card['collector_number']
+def import_data(user: str):
+    con = psycopg.connect(user = "postgres", password = "password", host = "127.0.0.1", port = "5432")
+    cur = con.cursor()
 
-        if len(cards) > 1:
-            # Tappedout doesn't seem to differentiate these so print a warning that we've defaulted to
-            # the first variation
-            print(f"WARNING: Tappedout might not differentiate between the versions of {card['name']} ({card['set']}), defaulting to collector number {default}.")
+    res = cur.execute('SELECT ID FROM Users WHERE Username = %s', (user,))
+    user_id = res.fetchone()[0]
 
-    if len(cards) == 0:
-        print(cards)
-        print(name, set_abbr)
+    rows_to_insert = []
 
-    assert type(default) == str
-    assert default != ''
-    return default
+    res = cur.execute('SELECT ID, Finish FROM Finishes')
+    finishes = res.fetchall()
 
-if len(sys.argv) != 3:
-    print("Expected exactly 2 argurments. The path to the ALL json bulk data and the path to the DEFAULT json bulk data.")
-    exit(1)
+    res = cur.execute('SELECT ID, Condition FROM Conditions')
+    conditions = res.fetchall()
 
-with open(sys.argv[1], 'r') as f:
-    all_data = json.load(f)
+    # Map finish -> id
+    finish_id_map= {}
 
-with open(sys.argv[2], 'r') as f:
-    default_data = json.load(f)
+    # Map condition -> id
+    condition_id_map = {}
 
-# Maps collector_number:set -> <default language>
-default_language_map = {}
+    scryfall_to_db_condition = {
+        'NM': 'Near Mint',
+        'SL': 'Lightly Played',
+        'MP': 'Moderately Played',
+        'HP': 'Heavily Played'
+    }
 
-# Maps set -> [<card_objs>]
-# Splitting the big list into sets is a good way to reduce iteration
-# and for every card we _always_ have the set from tappedout's data
-sets = {}
+    for finish in finishes:
+        finish_id_map[finish[1]] = finish[0]
 
-for card in default_data:
-    key = f"{card['collector_number']}:{card['set']}"
-    default_language_map[key] = card['lang']
+    for condition in conditions:
+        condition_id_map[condition[1]] = condition[0]
 
-for card in all_data:
-    if not sets.get(card['set']):
-        sets[card['set']] = []
+    # Use local scryfall database for this
+    def get_default_collectors_number(name: str, set_abbr: str) -> str:
+        # Tappedout does Turn / Burn
+        # Scryfall  does Turn // Burn
+        if '/' in name and '//' not in name:
+            name = name.replace('/', '//')
+        # Tappedout uses an inconsistent number of _
+        # Scryfall always uses _____
+        name = re.sub('___+', '_____', name)
+        # Tappedout has a typo
+        if name == 'Psuedodragon Familiar':
+            name = 'Pseudodragon Familiar'
+        # Tappedout doesn't care about ñ
+        if name == 'Robo-Pinata':
+            name = 'Robo-Piñata'
 
-    sets[card['set']].append(card)
+        res = cur.execute('SELECT c.CollectorNumber FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID WHERE lower(c.name) = %s AND s.Abbreviation = %s', (name.lower(), set_abbr))
+        collector_numbers = [tup[0] for tup in res.fetchall()]
 
-with open('printable.txt', 'r') as f:
-    with open('output.csv', 'w') as out:
-        out.write(f"Quantity|Name|Set|Collector Number|Variation|List|Foil|Promo Pack|Prerelease|Language|Scryfall ID\n")
-        # We skip the first line because it's a title
-        for line in list(f)[1:]:
-            # Skip the blank lines
-            if line == '\n':
-                continue
-            pattern = r'^([0-9]+)x ([^(]+) \(([A-Z0-9]{3,4})(:([A-Za-z0-9]+))?\)( \*(f|list|pp|f-pp|f-pre|[A-Z]{2})\*)?$'
-            matches = re.match(pattern, line)
-            if matches == None:
-                raise Exception(f"Input is in wrong format. Expected to match '{pattern}' but couldn't. Input was {line}")
+        # We can fail to find a card with the given name if the card has multiple faces
+        # Tappedout calls the card the name of the main face, scryfall calls it <main_face> // <other_face>
+        if len(collector_numbers) == 0:
+            res = cur.execute('SELECT c.CollectorNumber FROM Cards c INNER JOIN Faces f ON f.CardID = c.ID WHERE lower(f.Name) = %s', (name.lower(),))
+            collector_numbers = [tup[0] for tup in res.fetchall()]
 
-            quantity = matches.group(1)
-            name = matches.group(2)
-            set_abbr = matches.group(3).lower()
+        # If any collector_numbers are numeric
+        if any([collector_number.isnumeric() for collector_number in collector_numbers]):
+            # Filter out the cards with non-numeric collector numbers
+            numeric_collector_numbers = [collector_number for collector_number in collector_numbers if collector_number.isnumeric()]
+            # Sort by collector number as int (sorting by str results in '125' < '64')
+            default = min(numeric_collector_numbers, key=lambda collector_number: int(collector_number))
+        # ex. Unfinity attractions have all non-numeric collector numbers
+        else:
+            if len(collector_numbers) == 0:
+                print(name, set_abbr)
+            default = min(collector_numbers)
+
+            if len(collector_numbers) > 1:
+                # Tappedout doesn't seem to differentiate these so print a warning that we've defaulted to
+                # the first variation
+                print(f"WARNING: Tappedout might not differentiate between the versions of {name} ({set_abbr}), defaulting to collector number {default}.")
+
+        if len(collector_numbers) == 0:
+            print(collector_numbers)
+            print(name, set_abbr)
+            exit(1)
+
+        assert type(default) == str
+        assert default != ''
+        return default
+
+    with open('export.csv', 'r') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            quantity = row['Qty']
+            name = row['Name']
+            set_abbr = row['Set'].lower()
+            # "Set Number" sometimes isn't a collector number
+            variation = row['Set Number']
             if set_abbr == '000':
                 if name == 'Arbor Elf':
                     set_abbr = 'pw21'
                 elif name == 'Archfiend of Ifnir':
                     set_abbr = 'pakh'
+                # there isn't a good way to get the correct collector number
+                # for 30th Anniversary promos
+                elif name == 'Ball Lightning' and variation == '2':
+                    set_abbr = 'p30a'
+                    variation = '2'
                 elif name == 'Ember Swallower':
                     set_abbr = 'pths'
+                elif name == 'Fyndhorn Elves':
+                    set_abbr = 'p30a'
+                    variation = '3'
                 elif name == 'Mind Stone':
                     set_abbr = 'pw21'
                 elif name == 'Goblin Guide':
                     set_abbr = 'plg21'
+                elif name == 'Serra Angel' and variation == '5':
+                    set_abbr = 'p30a'
+                    variation = '1'
                 elif name == 'Swiftfoot Boots':
                     set_abbr = 'pw22'
+                elif name == 'Wall of Roots' and variation == '2':
+                    set_abbr = 'p30a'
+                    variation = '4'
                 else:
                     raise Exception(f"Unhandled 000 set. {name}")
             # tappedout and scryfall use different codes
@@ -126,68 +144,171 @@ with open('printable.txt', 'r') as f:
             elif set_abbr == 'tsb':
                 if name in ['Swamp', 'Aarakocra Sneak']:
                     set_abbr = 'clb'
-            # 3 is a wrapper to make the varaition optional
-            variation = matches.group(5)
+
             collector_number = None
             promo_pack = False
             prerelease = False
-            # Collector numbers can have non-numbers in them
-            if variation:
-                if variation.isnumeric():
-                    collector_number = variation
-                    variation = None
-                elif variation == 'PromoPack':
+            if variation != '-':
+                if variation == 'PromoPack':
                     collector_number = get_default_collectors_number(name, set_abbr)
                     promo_pack = True
-                    variation = None
                 else:
-                    raise Exception(f"Unhandled variation type. Variation was {variation}. Card was {name} {set_abbr}")
+                    collector_number = variation
             else:
                 collector_number = get_default_collectors_number(name, set_abbr)
-            # 6 wraps around the *'s
-            foil_or_language = matches.group(7)
+
+            # The collector number is wrong for these cards
+            if name == 'Armored Cancrix' and set_abbr == 'm14':
+                collector_number = '44'
+            elif name == 'Cancel' and set_abbr == 'm14':
+                collector_number = '45'
+            elif name == 'Keepsake Gorgon' and set_abbr == 'ths':
+                collector_number = '93'
+            elif name == 'Map the Wastes' and set_abbr == 'frf':
+                collector_number = '134'
+            elif name == 'Nyxborn Eidolon' and set_abbr == 'bng':
+                collector_number = '78'
+            elif name == 'Prying Questions' and set_abbr == 'emn':
+                collector_number = '101'
+            elif name == 'Resolute Veggiesaur' and set_abbr == 'unf':
+                collector_number = '153'
+            # We need the extra test because there are multiple versions of this wastes
+            elif name == 'Wastes' and set_abbr == 'ogw' and collector_number == '134':
+                collector_number = '184'
+
+
+            # This isn't exactly a finish because it also says if it's a list card
+            finish = row['Foil']
+
+            # Tappedout spells language wrong in the csv
+            language = row['Languange'].lower()
             foil = False
-            key = f"{collector_number}:{set_abbr.lower()}"
-            language = default_language_map[key]
             the_list = False
-            if foil_or_language:
-                if foil_or_language == 'f':
+            if finish != '-':
+                if finish == 'f':
                     foil = True
-                elif foil_or_language == 'list':
+                elif finish == 'list':
                     the_list = True
-                elif foil_or_language == 'pp':
+                elif finish == 'pp':
                     promo_pack = True
-                elif foil_or_language == 'f-pp':
+                elif finish == 'f-pp':
                     foil = True
                     promo_pack = True
-                elif foil_or_language == 'f-pre':
+                elif finish == 'f-pre':
                     foil = True
                     prerelease = True
                 else:
-                    language = foil_or_language.lower()
+                    language = finish.lower()
+
+            # This is scryfall's fault, it's not in their database yet
+            if name == "Gix's Command" and prerelease:
+                continue
+
+            if the_list:
+                set_abbr = 'plist'
+
+            if (promo_pack or prerelease) and set_abbr != 'pths':
+                set_abbr = 'p' + set_abbr
+                if promo_pack:
+                    collector_number += 'p'
+
+                if prerelease:
+                    collector_number += 's'
+
             if language == 'zh':
                 print(f"WARNING: Tappedout doesn't have Chinese Traditional as a language option. Verify this card is actually Chinese Simplified. {name} ({set_abbr}:{collector_number})")
                 language = 'zhs'
 
-            set_ = sets[set_abbr]
-            card = [card for card in set_ if card['collector_number'] == collector_number and card['lang'].lower() == language.lower()]
-            if len(card) != 1:
-                import pdb; pdb.set_trace()
-                raise ValueError(f"Expected only one card with collector number {collector_number} in set {set_abbr}. Cards: {card}")
-            card = card[0]
-            scryfall_id = card['id']
-            out.write(f"{quantity}|{name}|{set_abbr}|{collector_number}|{variation}|{the_list}|{foil}|{promo_pack}|{prerelease}|{language}|{scryfall_id}\n")
+            res = cur.execute('SELECT fc.ID, fc.FinishID FROM FinishCards fc WHERE CardID IN (SELECT c.ID FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID INNER JOIN Langs l ON c.LangID = l.ID WHERE s.Abbreviation = %s AND c.CollectorNumber = %s AND l.Lang = %s)', (set_abbr, collector_number, language))
+            id_finishes = res.fetchall()
+            finish_ids = [id_finish[1] for id_finish in id_finishes]
 
-# Sanity checks
-import csv
-with open('output.csv', 'r') as out:
-    output_reader = csv.DictReader(out, delimiter='|')
-    total_cards = 0
-    for row in output_reader:
-        total_cards += int(row["Quantity"])
-        assert(len(row.keys()) == 11)
+            # Tappedout allows entry of languages that aren't actually available
+            # So if we didn't get any results then we see if that's the issue
+            if len(id_finishes) == 0:
+                # Check if it was the language that was the problem
+                res = cur.execute('SELECT Langs.Lang FROM Cards INNER JOIN Langs ON Cards.LangID = Langs.ID INNER JOIN Sets ON Cards.SetID = Sets.ID WHERE sets.Abbreviation = %s AND cards.CollectorNumber = %s', (set_abbr, collector_number))
+                languages = res.fetchall()
 
-assert total_cards == 6890
+                if len(languages) > 0 and language not in languages:
+                    # If the card doesn't come in this language and there's only one option that's probably what they wanted
+                    if len(languages) == 1:
+                        print(f"WARNING: {name} ({set_abbr}:{collector_number}) doesn't come in language '{language}', it only comes in {languages[0][0]}. So we're using that.")
+                        language = languages[0][0]
+                    else:
+                        # This is to cover weird edge cases that I haven't seen yet.
+                        print(f"Card doesn't come in this language and there are multiple to choose from. Fix it in tappedout and try again. Card: {name} ({set_abbr}:{collector_number}) {language}, Available languages: {languages}")
+                        exit(1)
 
+                res = cur.execute('SELECT fc.ID, fc.FinishID FROM FinishCards fc WHERE CardID IN (SELECT c.ID FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID INNER JOIN Langs l ON c.LangID = l.ID WHERE s.Abbreviation = %s AND c.CollectorNumber = %s AND l.Lang = %s)', (set_abbr, collector_number, language))
+                id_finishes = res.fetchall()
+                finish_ids = [id_finish[1] for id_finish in id_finishes]
 
+            # Sometimes the collector number doesn't match up what scryfall has
+            # this usually happens when scryfall distingushes between versions of card
+            # that tappedout doesn't
+            # Ex. Bruna, the Fading Light
+            if len(id_finishes) == 0:
+                collector_number = get_default_collectors_number(name, set_abbr)
+                res = cur.execute('SELECT fc.ID, fc.FinishID FROM FinishCards fc WHERE CardID IN (SELECT c.ID FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID INNER JOIN Langs l ON c.LangID = l.ID WHERE s.Abbreviation = %s AND c.CollectorNumber = %s AND l.Lang = %s)', (set_abbr, collector_number, language))
+                id_finishes = res.fetchall()
+                finish_ids = [id_finish[1] for id_finish in id_finishes]
 
+            # If etched is the only option then we don't need to warn
+            if len(id_finishes) > 1:
+                if finish_id_map['etched'] in finish_ids or finish_id_map['glossy'] in finish_ids:
+                    print(f"WARNING: Tappedout doesn't have etched or glossy as an option in their database and {name} ({set_abbr}:{collector_number} is available in one of those finishes. Ensure the data is correct.")
+
+                if not foil and finish_id_map['nonfoil'] in finish_ids:
+                    finish = finish_id_map['nonfoil']
+                elif foil and finish_id_map['foil'] in finish_ids:
+                    finish = finish_id_map['foil']
+                else:
+                    print(f"Finish appears to be wrong on card {name} ({set_abbr}:{collector_number}). Valid options are {finishes}")
+                    exit(1)
+
+                finishCardID = [f for f in id_finishes if f[1] == finish]
+                if len(finishCardID) != 1:
+                    print(f"Didn't find exactly one card + finish for card {name} ({set_abbr}:{collector_number}). Options were {finishCardID}")
+                    exit(1)
+
+                finishCardID = finishCardID[0][0]
+            elif len(id_finishes) == 1:
+                # TODO: Warn if the only finish in scryfall doesn't match the one they have in tappedout
+                finishCardID = id_finishes[0][0]
+            else:
+                print(row)
+                raise ValueError("Didn't find a matching card + finish + lang combo")
+
+            condition = row['Condition']
+            altered = row['Alter'] != '-'
+            signed = row['Signed'] != '-'
+
+            condition_id = condition_id_map[scryfall_to_db_condition[condition]]
+
+            #if finishCardID in [693567,840556,899403,776536]:
+            #    print(row)
+
+            rows_to_insert.append((user_id, finishCardID, condition_id, quantity, signed, altered, ''))
+
+    for index, row in enumerate(rows_to_insert):
+        for row2 in rows_to_insert[index + 1:]:
+            if row[0] == row2[0] and row[1] == row2[1] and row[2] == row2[2] and row[4] == row2[4] and row[5] == row2[5]:
+                print(f'Duplicate:', row[1])
+
+    with cur.copy("COPY Collections (UserID, FinishCardID, ConditionID, Quantity, Signed, Altered, Notes) FROM STDIN") as copy:
+        for row in rows_to_insert:
+            copy.write_row(row)
+
+    quantities = cur.execute('SELECT Quantity FROM Collections WHERE UserID = %s', (user_id,)).fetchall()
+    total_cards = sum([q[0] for q in quantities])
+    assert total_cards == 7237 - 1
+
+    con.commit()
+
+import timeit
+
+now = timeit.default_timer()
+import_data('me')
+
+print(f"Took {timeit.default_timer() - now} seconds")

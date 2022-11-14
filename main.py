@@ -1,14 +1,66 @@
 from flask import Flask, request, url_for, redirect, abort, render_template_string, flash
 from urllib.parse import urlparse, urljoin
 from flask_login import LoginManager, login_required, login_user, logout_user
-import json, csv, sqlite3
+import json, sqlite3, psycopg
+import flask_login
+from argon2 import PasswordHasher
 
 login_manager = LoginManager()
 
 app = Flask(__name__)
 login_manager.init_app(app)
 
+HASH_FUNCTION = 'SHA3-512'
 app.config['SECRET_KEY'] = 'aed47c6a4cf84f7585ab2243a10c0e96'
+
+
+con = psycopg.connect(user = "postgres", password = "password", host = "127.0.0.1", port = "5432")
+cur = con.cursor()
+
+
+cur.execute('''CREATE TABLE IF NOT EXISTS Users
+            (
+            ID           INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            Username     VARCHAR NOT NULL,
+            PasswordHash VARCHAR NOT NULL,
+            UNIQUE(Username)
+            )
+            ''')
+
+cur.execute('''CREATE TABLE IF NOT EXISTS Conditions
+            (
+            ID        INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            Condition VARCHAR NOT NULL,
+            UNIQUE(Condition)
+            )
+            ''')
+
+cur.execute("INSERT INTO Conditions(Condition) VALUES('Near Mint') ON CONFLICT DO NOTHING")
+cur.execute("INSERT INTO Conditions(Condition) VALUES('Lightly Played') ON CONFLICT DO NOTHING")
+cur.execute("INSERT INTO Conditions(Condition) VALUES('Moderately Played') ON CONFLICT DO NOTHING")
+cur.execute("INSERT INTO Conditions(Condition) VALUES('Heavily Played') ON CONFLICT DO NOTHING")
+cur.execute("INSERT INTO Conditions(Condition) VALUES('Damaged') ON CONFLICT DO NOTHING")
+
+cur.execute('''CREATE TABLE IF NOT EXISTS Collections
+            (
+            ID           INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            UserID       INTEGER REFERENCES Users(ID)       DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            FinishCardID INTEGER REFERENCES FinishCards(ID) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            ConditionID  INTEGER REFERENCES Conditions(ID)  DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            Signed       BOOLEAN NOT NULL,
+            Altered      BOOLEAN NOT NULL,
+            Notes        VARCHAR NOT NULL,
+            Quantity     INTEGER NOT NULL,
+            UNIQUE(UserID, FinishCardID, ConditionID, Signed, Altered, Notes)
+            )
+            ''')
+
+ph = PasswordHasher()
+password_hash = ph.hash('foo')
+
+cur.execute('''INSERT INTO Users(Username, PasswordHash) VALUES(%s, %s) ON CONFLICT DO NOTHING''', ('me', password_hash))
+
+con.commit()
 
 class User:
     def __init__(self, id, password):
@@ -51,14 +103,39 @@ def index():
 </style>
 <div class="grid"></div>'''
 
+def get_database_connection():
+    con = psycopg.connect(user = "postgres", password = "password", host = "127.0.0.1", port = "5432")
+    return con
+
+
+
 def api_collection_search(search_text: str, page: int):
+    con = get_database_connection()
+    cur = con.cursor()
+
     cards = []
-    with open('output.csv', 'r') as f:
-        cards_reader = csv.DictReader(f, delimiter='|')
-        for card in cards_reader:
-            name = card['Name'].lower()
-            if search_text.lower() in name:
-                cards.append({'scryfall_id': card['Scryfall ID'], 'quantity': card['Quantity']})
+    username = flask_login.current_user.id
+
+    res = cur.execute('SELECT ID FROM Users WHERE Username = %s', (username,))
+    user_id = res.fetchone()
+
+    if user_id == None:
+        return json.dumps({'successful': False, 'error': "Couldn't find user ID in database."})
+
+    user_id = user_id[0]
+
+    res = cur.execute('''SELECT cards.ID, cards.Name, finishes.Finish, colls.Quantity FROM Collections colls
+                      INNER JOIN FinishCards finishCards ON colls.FinishCardID = finishCards.ID
+                      INNER JOIN Cards cards ON finishCards.CardID = cards.ID
+                      INNER JOIN Finishes finishes ON finishCards.FinishID = finishes.ID
+                      WHERE colls.UserID = %s
+                      ORDER BY cards.Name
+                      ''', (user_id,))
+    results = res.fetchall()
+
+    for id_, name, finish, quantity in results:
+        if search_text.lower() in name.lower():
+            cards.append({'scryfall_id': str(id_), 'finish': finish, 'quantity': quantity})
 
     length = len(cards)
 
@@ -70,7 +147,7 @@ def api_collection_search(search_text: str, page: int):
 
 @app.route("/api/all_cards/languages")
 def api_all_cards_languages():
-    con = sqlite3.connect('all.db')
+    con = get_database_connection()
     cur = con.cursor()
 
     args = request.args
@@ -81,9 +158,9 @@ def api_all_cards_languages():
         return json.dumps(error)
 
     res = cur.execute('''SELECT A.ID, A.DefaultLang, Langs.Lang FROM Cards A
-                INNER JOIN Cards B
-                INNER JOIN Langs ON A.LangID=Langs.ID
-                WHERE B.ID == ? AND A.CollectorNumber == B.CollectorNumber AND A.SetID == B.SetID''', (scryfall_id,))
+                CROSS JOIN Cards B
+                INNER JOIN Langs ON A.LangID = Langs.ID
+                WHERE B.ID = %s AND A.CollectorNumber = B.CollectorNumber AND A.SetID = B.SetID''', (scryfall_id,))
 
     rows = res.fetchall()
     if len(rows) == 0:
@@ -97,7 +174,7 @@ def api_all_cards_languages():
         default = row[1]
         lang = row[2]
         obj = {
-                'scryfall_id': id_,
+                'scryfall_id': str(id_),
                 'default': bool(default),
                 'lang': lang
                 }
@@ -108,7 +185,7 @@ def api_all_cards_languages():
 
 @app.route("/api/by_id")
 def api_by_id():
-    con = sqlite3.connect('all.db')
+    con = get_database_connection()
     cur = con.cursor()
 
     args = request.args
@@ -120,9 +197,9 @@ def api_by_id():
 
     print(scryfall_id)
     res = cur.execute("""SELECT Cards.ID, Cards.NormalImageURI, Finishes.Finish FROM Cards
-                      INNER JOIN FinishCards ON Cards.ID=FinishCards.CardID
-                      INNER JOIN Finishes ON FinishCards.FinishID=Finishes.ID
-                      WHERE Cards.ID == ?""", (scryfall_id,))
+                      INNER JOIN FinishCards ON Cards.ID = FinishCards.CardID
+                      INNER JOIN Finishes ON FinishCards.FinishID = Finishes.ID
+                      WHERE Cards.ID = %s""", (scryfall_id,))
     entries = res.fetchall()
 
     if len(entries) == 0:
@@ -138,20 +215,42 @@ def api_by_id():
 
 
 def api_all_cards_search(search_text: str, page: int, default: bool):
-    con = sqlite3.connect('all.db')
+    con = get_database_connection()
     cur = con.cursor()
 
     cards = []
     search_string = f'%{search_text}%'
 
-    res = cur.execute("SELECT COUNT(*) FROM Cards WHERE LOWER(Name) LIKE ? AND DefaultLang == ?", (search_string, default))
-    length = res.fetchone()
+    if default:
+        res = cur.execute('''SELECT COUNT(*) FROM Cards
+                          WHERE LOWER(Name) LIKE %s AND DefaultLang = true''',
+                          (search_string,))
+        length = res.fetchone()
 
-    res = cur.execute("SELECT ID FROM Cards WHERE LOWER(Name) LIKE ? AND DefaultLang == ? LIMIT ?, ?", (search_string, default, page * PAGE_SIZE, PAGE_SIZE))
+        res = cur.execute('''SELECT ID FROM Cards
+                          WHERE LOWER(Name) LIKE %s AND DefaultLang = true
+                          ORDER BY Name
+                          LIMIT %s OFFSET %s
+                          ''',
+                          (search_string, PAGE_SIZE, page * PAGE_SIZE))
+    else:
+        res = cur.execute('''SELECT COUNT(*) FROM Cards
+                          WHERE LOWER(Name) LIKE %s
+                          ''',
+                          (search_string,))
+        length = res.fetchone()
+
+        res = cur.execute('''SELECT ID FROM Cards
+                          WHERE LOWER(Name) LIKE %s
+                          ORDER BY Name
+                          LIMIT %s OFFSET %s
+                          ''',
+                          (search_string, PAGE_SIZE, page * PAGE_SIZE))
+
     card_results = res.fetchall()
 
     for card in card_results:
-        cards.append({'scryfall_id': card[0]})
+        cards.append({'scryfall_id': str(card[0])})
 
     return json.dumps({'cards': cards, 'length': length})
 
@@ -213,8 +312,18 @@ def api_collection():
     # to ensure we don't accidently mess up the database
     # or say we're adding a card when in reality we aren't
     elif request.method == 'POST':
-        con = sqlite3.connect('all.db')
+        con = get_database_connection()
         cur = con.cursor()
+
+        username = flask_login.current_user.id
+
+        res = cur.execute('SELECT ID FROM Users WHERE Username = %s', (username,))
+        user_id = res.fetchone()
+
+        if user_id == None:
+            return json.dumps({'successful': False, 'error': "Couldn't find user ID in database."})
+
+        user_id = user_id[0]
 
         content_type = request.headers.get('Content-Type')
         if (content_type == 'application/json'):
@@ -278,8 +387,8 @@ def api_collection():
             # TODO: Check for unexpected keys
 
             res = cur.execute("""SELECT Cards.Name, Cards.CollectorNumber, Sets.Abbreviation FROM Cards
-                              INNER JOIN Sets ON Cards.SetID=Sets.ID
-                              WHERE Cards.ID == ?""", (scryfall_id,))
+                              INNER JOIN Sets ON Cards.SetID = Sets.ID
+                              WHERE Cards.ID = %s""", (scryfall_id,))
             row = res.fetchone()
 
             if row == None:
@@ -292,40 +401,52 @@ def api_collection():
                     'set_abbr': row[2]
                     }
 
-            with open('output.csv', 'r') as f:
-                cards = list(csv.DictReader(f, delimiter='|'))
-            for card in cards:
-                if card['Scryfall ID'] == scryfall_id:
-                    card['Quantity'] = str(int(card['Quantity']) + quantity)
-                    with open('output.csv', 'w') as f:
-                        fieldnames = ["Quantity", "Name", "Set", "Collector Number", "Variation", "List", "Foil", "Promo Pack", "Prerelease", "Language", "Scryfall ID"]
-                        writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='|')
-                        writer.writeheader()
-                        writer.writerows(cards)
-                    return_obj = {'successful': True, 'card': return_card}
-                    return json.dumps(return_obj)
+            res = cur.execute('''SELECT ID FROM Finishes
+                              WHERE Finish = %s
+                              ''', (finish,))
+            finish_id = res.fetchone()
 
-            cards.append({
-                'Quantity': str(quantity),
-                'Name': return_card['name'],
-                'Set': return_card['set_abbr'],
-                'Collector Number': return_card['collector_number'],
-                'Variation': str(None),
-                'List': str(False),
-                'Foil': str(False),
-                'Promo Pack': str(False),
-                'Prerelease': str(False),
-                'Language': language,
-                'Scryfall ID': scryfall_id
-                            })
+            if finish_id == None:
+                error = {'successful': False, 'error': f"No such finish {finish}"}
+                return json.dumps(error)
 
-            with open('output.csv', 'w') as f:
-                fieldnames = ["Quantity", "Name", "Set", "Collector Number", "Variation", "List", "Foil", "Promo Pack", "Prerelease", "Language", "Scryfall ID"]
-                writer = csv.DictWriter(f, fieldnames=fieldnames, delimiter='|')
-                writer.writeheader()
-                writer.writerows(cards)
+            finish_id = finish_id[0]
+
+            res = cur.execute('''SELECT ID FROM FinishCards
+                              WHERE CardID = %s AND FinishID = %s
+                              ''', (scryfall_id, finish_id))
+
+            finish_card_id = res.fetchone()
+
+            if finish_card_id == None:
+                error = {'successful': False, 'error': f"That card doesn't come in the finish \"{finish}\""}
+                return json.dumps(error)
+            finish_card_id = finish_card_id[0]
+
+            res = cur.execute('''SELECT * FROM Collections
+                              WHERE UserID = %s AND
+                              FinishCardID = %s AND
+                              Signed = %s AND
+                              Altered = %s AND
+                              Notes = %s
+                              ''', (user_id, finish_card_id, signed, altered, notes))
+            card_in_collection = res.fetchone() != None
+
+            if card_in_collection:
+                cur.execute('''UPDATE collections SET Quantity = quantity + %s
+                            WHERE UserID = %s AND
+                            FinishCardID = %s AND
+                            Signed = %s AND
+                            Altered = %s AND
+                            Notes = %s
+                            ''', (quantity, user_id, finish_card_id, signed, altered, notes))
+            else:
+                cur.execute('''INSERT INTO Collections(UserID, FinishCardID, Quantity, Signed, Altered, Notes)
+                            VALUES(%s, %s, %s, %s, %s, %s)
+                            ''', (user_id, finish_card_id, quantity, signed, altered, notes))
 
             return_obj = {'successful': True, 'card': return_card}
+            con.commit()
             return json.dumps(return_obj)
         else:
             error = {'successful': False, 'error': f"Expected Content-Type: application/json, found {content_type}"}

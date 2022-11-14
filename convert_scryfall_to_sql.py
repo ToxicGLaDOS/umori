@@ -1,4 +1,9 @@
 #!/usr/bin/env python
+
+# NOTES ON PERFORMANCE:
+# Using UNLOGGED tables and then using ALTER TABLE ... SET LOGGED seems the same as just using LOGGED tables to begin with
+# Sqlite3 is waaaay faster, for inserts but waaaay slower on the DELETES. It took about ~15 minutes or so to DELETE all the data in Sqlite3
+
 import psycopg, ijson, sys, os, timeit
 
 if len(sys.argv) != 3:
@@ -38,6 +43,8 @@ cur = con.cursor()
 
 #cur.execute('PRAGMA foreign_keys = ON')
 now = timeit.default_timer()
+start_time = now
+
 
 cur.execute('''CREATE TABLE IF NOT EXISTS Langs
             (
@@ -130,7 +137,7 @@ cur.execute('''CREATE TABLE IF NOT EXISTS Colors
 # but sometimes they are :shrug:
 #
 # DefaultLang is the only column that's calculated
-cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS Cards
+cur.execute('''CREATE TABLE IF NOT EXISTS Cards
                (
                ID                      UUID        PRIMARY KEY                               NOT NULL,
                OracleID                UUID                                                          ,
@@ -199,7 +206,7 @@ cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS Cards
 # CardID + NormalImageURI isn't sufficent because NormalImageURI is NULL
 # when both "faces" are on the same side of the card (ex. aftermath cards)
 # TODO: Needs colors junction
-cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS Faces
+cur.execute('''CREATE TABLE IF NOT EXISTS Faces
             (
             ID             INTEGER PRIMARY KEY          GENERATED ALWAYS AS IDENTITY,
             CardID         UUID    REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED      NOT NULL,
@@ -219,7 +226,7 @@ cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS Faces
 # We _could_ make a table for the MultiverseIDs and
 # have this be forign keys to each table, but that seems
 # unnecessary
-cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS MultiverseIDCards
+cur.execute('''CREATE TABLE IF NOT EXISTS MultiverseIDCards
             (
             ID           INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             CardID       UUID    REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
@@ -228,7 +235,7 @@ cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS MultiverseIDCards
             ''')
 
 
-cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS ColorCards
+cur.execute('''CREATE TABLE IF NOT EXISTS ColorCards
             (
             ID      INTEGER  PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             CardID  UUID     REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
@@ -238,7 +245,7 @@ cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS ColorCards
             ''')
 
 
-cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS ColorIdentityCards
+cur.execute('''CREATE TABLE IF NOT EXISTS ColorIdentityCards
             (
             ID      INTEGER  PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             CardID  UUID     REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
@@ -256,7 +263,7 @@ cur.execute('''CREATE TABLE IF NOT EXISTS Keywords
             ''')
 
 
-cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS KeywordCards
+cur.execute('''CREATE TABLE IF NOT EXISTS KeywordCards
             (
             ID        INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             CardID    UUID    REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
@@ -274,7 +281,7 @@ cur.execute('''CREATE TABLE IF NOT EXISTS Games
             ''')
 
 
-cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS GameCards
+cur.execute('''CREATE TABLE IF NOT EXISTS GameCards
             (
             ID     INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             CardID UUID    REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
@@ -292,7 +299,7 @@ cur.execute('''CREATE TABLE IF NOT EXISTS Finishes
             ''')
 
 
-cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS FinishCards
+cur.execute('''CREATE TABLE IF NOT EXISTS FinishCards
             (
             ID       INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
             CardID   UUID    REFERENCES Cards(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
@@ -305,27 +312,27 @@ cur.execute('''CREATE UNLOGGED TABLE IF NOT EXISTS FinishCards
 print(f"Create tables took {timeit.default_timer() - now:.2f} seconds")
 now = timeit.default_timer()
 
-cur.execute('DELETE FROM Layouts;')
-cur.execute('DELETE FROM ImageStatuses;')
-cur.execute('DELETE FROM Legalities;')
-cur.execute('DELETE FROM SetTypes;')
-cur.execute('DELETE FROM Sets;')
-cur.execute('DELETE FROM Rarities;')
-cur.execute('DELETE FROM BorderColors;')
-cur.execute('DELETE FROM Frames;')
-cur.execute('DELETE FROM Colors;')
-cur.execute('DELETE FROM Cards;')
-cur.execute('DELETE FROM Faces;')
-cur.execute('DELETE FROM MultiverseIDCards;')
-cur.execute('DELETE FROM ColorCards;')
-cur.execute('DELETE FROM ColorIdentityCards;')
-cur.execute('DELETE FROM Keywords;')
-cur.execute('DELETE FROM KeywordCards;')
-cur.execute('DELETE FROM Games;')
-cur.execute('DELETE FROM GameCards;')
-cur.execute('DELETE FROM Finishes;')
-cur.execute('DELETE FROM FinishCards;')
-cur.execute('DELETE FROM Langs;')
+cur.execute('DELETE FROM Layouts')
+cur.execute('DELETE FROM ImageStatuses')
+cur.execute('DELETE FROM Legalities')
+cur.execute('DELETE FROM SetTypes')
+cur.execute('DELETE FROM Sets')
+cur.execute('DELETE FROM Rarities')
+cur.execute('DELETE FROM BorderColors')
+cur.execute('DELETE FROM Frames')
+cur.execute('DELETE FROM Colors')
+cur.execute('DELETE FROM Cards')
+cur.execute('DELETE FROM Faces')
+cur.execute('DELETE FROM MultiverseIDCards')
+cur.execute('DELETE FROM ColorCards')
+cur.execute('DELETE FROM ColorIdentityCards')
+cur.execute('DELETE FROM Keywords')
+cur.execute('DELETE FROM KeywordCards')
+cur.execute('DELETE FROM Games')
+cur.execute('DELETE FROM GameCards')
+cur.execute('DELETE FROM Finishes')
+cur.execute('DELETE FROM FinishCards')
+cur.execute('DELETE FROM Langs')
 
 print(f"DELETE tables took {timeit.default_timer() - now:.2f} seconds")
 now = timeit.default_timer()
@@ -650,6 +657,10 @@ for face in faces:
 print(f"INSERT faces took {timeit.default_timer() - now:.2f} seconds")
 now = timeit.default_timer()
 
+now = timeit.default_timer()
 con.commit()
 print(f"Commit took {timeit.default_timer() - now:.2f} seconds")
+
 con.close()
+
+print(f"Total time {timeit.default_timer() - start_time:.2f} seconds")

@@ -38,7 +38,7 @@ async function load_page(page_num, search_query) {
             .then(response => response.json());
     }
     else {
-        var response = await fetch(`/api/all_cards?page=${page_num}`)
+        var response = await fetch(`/api/all_cards?page=${page_num}&default=true`)
             .then(response => response.json());
     }
     var length = response.length;
@@ -253,18 +253,21 @@ function populate_modal(scryfall_id) {
                 .then(langs_response => {
                     var lang_selector = document.getElementById('lang-select');
                     var finish_selector = document.getElementById('finish-select');
+                    console.log(langs_response);
                     var groups = langs_response.reduce((groups, obj) => {
+                        // Ensures we always have a non_default list
+                        groups['non_default'] = groups['non_default'] || [];
                         if (obj.default) {
                             groups['default'] = obj;
                         }
                         else {
-                            groups['non_default'] = groups['non_default'] || [];
                             groups['non_default'].push(obj);
                         }
                         return groups;
                     }, {});
 
                     var default_lang_obj = groups['default'];
+                    console.log(groups);
                     var non_default_lang_objs = groups['non_default'].sort((a, b) => {
                         if (a.lang < b.lang) {
                             return -1;
