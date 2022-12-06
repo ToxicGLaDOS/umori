@@ -77,7 +77,7 @@ async function add_page(cards_data, create_card) {
 }
 
 async function create_page_nav(collection_length) {
-    var num_pages = Math.floor(collection_length / PAGE_SIZE);
+    var num_pages = Math.floor(collection_length / PAGE_SIZE - 1);
     var page_nav = document.getElementById("page-nav");
 
     // Delete all children of page_nav
