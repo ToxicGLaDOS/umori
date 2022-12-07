@@ -58,6 +58,7 @@ async function add_page(cards_data, create_card) {
                 collection_card.collector_number = scryfall_card.collector_number;
                 collection_card.set = scryfall_card.set;
                 collection_card.name = scryfall_card.name;
+                collection_card.finishes = scryfall_card.finishes;
             }
 
             // Create all the card objects in the DOM

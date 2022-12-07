@@ -6,6 +6,10 @@ function create_card(card) {
     var card_div = document.createElement("div");
     card_div.className = 'card-div';
     card_div.tabIndex = 0;
+
+    var image_div = document.createElement("div");
+    image_div.style.position = 'relative';
+
     var image = document.createElement("img");
     image.src = card.image_src;
     image.loading = "lazy";
@@ -15,7 +19,8 @@ function create_card(card) {
     title.className = 'card-quantity';
 
     card_div.appendChild(title);
-    card_div.appendChild(image);
+    card_div.appendChild(image_div);
+    image_div.appendChild(image);
 
     // There must be a better way to get the width
     // of text than actually putting in the dom and getting the value
@@ -25,6 +30,14 @@ function create_card(card) {
     while (title.getBoundingClientRect().width > image.getBoundingClientRect().width) {
         var font_size = window.getComputedStyle(title).getPropertyValue("font-size");
         title.style.fontSize = parseInt(font_size, 10) - 1;
+    }
+
+    // nonfoil and glossy are the 2 nonfoil options
+    // foil and etched are both foils
+    if (!(card.finishes.includes('nonfoil') || card.finishes.includes('glossy'))){
+        var foil_overlay = document.createElement("div");
+        foil_overlay.className = 'foil-overlay';
+        image_div.appendChild(foil_overlay);
     }
 
     document.body.removeChild(card_div);
@@ -300,7 +313,7 @@ function populate_modal(scryfall_id) {
                         finish_selector.removeChild(finish_selector.lastChild);
                     }
 
-                    // Generate new language options
+                    // Generate new finish options
                     for (var finish of finishes) {
                         var option = new Option(finish, finish);
                         finish_selector.appendChild(option);

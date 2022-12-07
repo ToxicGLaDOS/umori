@@ -5,6 +5,10 @@ import {create_page_nav, add_page, initialize} from './paged_cards.js'
 function create_card(card) {
     var card_div = document.createElement("div");
     card_div.className = 'card-div';
+
+    var image_div = document.createElement("div");
+    image_div.style.position = 'relative';
+
     var image = document.createElement("img");
     image.src = card.image_src;
     image.loading = "lazy";
@@ -14,7 +18,8 @@ function create_card(card) {
     quantity_text.className = 'card-quantity';
 
     card_div.appendChild(quantity_text);
-    card_div.appendChild(image);
+    card_div.appendChild(image_div);
+    image_div.appendChild(image);
 
     // There must be a better way to get the width
     // of text than actually putting in the dom and getting the value
@@ -24,6 +29,12 @@ function create_card(card) {
     while (quantity_text.getBoundingClientRect().width > image.getBoundingClientRect().width) {
         var font_size = window.getComputedStyle(quantity_text).getPropertyValue("font-size");
         quantity_text.style.fontSize = parseInt(font_size, 10) - 1;
+    }
+
+    if (card.finish == 'foil' || card.finish == 'etched'){
+        var foil_overlay = document.createElement("div");
+        foil_overlay.className = 'foil-overlay';
+        image_div.appendChild(foil_overlay);
     }
 
     document.body.removeChild(card_div);
