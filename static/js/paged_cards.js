@@ -78,7 +78,8 @@ async function add_page(cards_data, create_card) {
 }
 
 async function create_page_nav(collection_length) {
-    var num_pages = Math.floor(collection_length / PAGE_SIZE - 1);
+    var num_pages = Math.ceil(collection_length / PAGE_SIZE);
+    var highest_page = num_pages - 1;
     var page_nav = document.getElementById("page-nav");
 
     // Delete all children of page_nav
@@ -119,7 +120,7 @@ async function create_page_nav(collection_length) {
     page_nav.appendChild(cur_page_link);
 
     // Create the nav links for pages more than cur_page
-    for (var i = 1; i < Math.min(PAGE_NAV_SPAN, num_pages - cur_page) + 1; i++){
+    for (var i = 1; i < Math.min(PAGE_NAV_SPAN + 1, num_pages - cur_page); i++){
         var new_link = document.createElement("a");
         url.searchParams.set('page', cur_page + i);
         new_link.href = url.toString();
@@ -128,16 +129,16 @@ async function create_page_nav(collection_length) {
         page_nav.appendChild(new_link);
     }
 
-    if (num_pages - cur_page > PAGE_NAV_SPAN) {
+    if (highest_page - cur_page > PAGE_NAV_SPAN) {
         var elipses = document.createElement("div");
         elipses.innerHTML = "...";
         elipses.style.display = "inline";
         page_nav.appendChild(elipses)
 
         var last_link = document.createElement("a");
-        url.searchParams.set('page', num_pages);
+        url.searchParams.set('page', highest_page);
         last_link.href = url.toString();
-        last_link.innerHTML = `${num_pages}`
+        last_link.innerHTML = `${highest_page}`
         last_link.className = "page-nav-link"
         page_nav.appendChild(last_link);
     }
