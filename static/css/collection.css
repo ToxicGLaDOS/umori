@@ -25,6 +25,12 @@
     height: auto;
     border-radius: 10px;
 }
+.modal-card-container {
+  position: relative;
+  /* To see what these do try zooming in */
+  width: fit-content;
+  height: fit-content;
+}
 .foil-overlay {
     position: absolute;
     background: linear-gradient(-60deg, purple, blue, green, yellow, red);

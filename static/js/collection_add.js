@@ -122,6 +122,20 @@ function close_modal_and_focus_search() {
     fine_filter.value = "";
 }
 
+// Hides or unhides the foil overlay
+function set_foil_overlay() {
+    var finish_selector = document.getElementById("finish-select");
+    var foil_overlay = document.getElementById("modal-card-foil-overlay");
+    var value = finish_selector.selectedOptions[0].value;
+
+    if (value == "foil" || value == "etched") {
+        foil_overlay.style.visibility = "visible";
+    }
+    else {
+        foil_overlay.style.visibility = "hidden";
+    }
+}
+
 function init_modal() {
     // Get the modal
     var modal = document.getElementById("myModal");
@@ -131,6 +145,13 @@ function init_modal() {
 
     // Get the button that adds the cards to the database
     var add_button = document.getElementById("add-button");
+
+    // Set up the foil over the modal cards when the user chooses that
+    var foil_overlay = document.getElementById("modal-card-foil-overlay");
+    foil_overlay.style.visibility = "hidden";
+
+    var finish_selector = document.getElementById("finish-select");
+    finish_selector.addEventListener("change", set_foil_overlay);
 
     // When the user clicks on <span> (x), close the modal
     span.onclick = function() {
@@ -233,7 +254,7 @@ function init_modal() {
 }
 
 function add_card_to_modal(scryfall_id) {
-    var modal_card = document.getElementById("modal-card");
+    var modal_card = document.getElementById("modal-card-img");
     fetch(`/api/by_id?scryfall_id=${scryfall_id}`)
         .then(response => response.json())
         .then(scryfall_card => {
@@ -250,6 +271,22 @@ function add_card_to_modal(scryfall_id) {
         })
 }
 
+function finishes_cmp(a, b) {
+    var order = ["nonfoil", "foil", "etched", "glossy"];
+    var a_index = order.indexOf(a);
+    var b_index = order.indexOf(b);
+
+    // If a new finish is printed we'll default it to the end of the list
+    if (a_index == -1) {
+        a_index = order.length;
+    }
+    if (b_index == -1) {
+        b_index = order.length;
+    }
+
+    return order.indexOf(a) - order.indexOf(b);
+}
+
 function populate_modal(scryfall_id) {
     var modal = open_modal();
     var modal_content = modal.getElementsByClassName('modal-content')[0];
@@ -261,6 +298,7 @@ function populate_modal(scryfall_id) {
                 console.log(json_response);
             }
             var finishes = json_response.finishes;
+            finishes.sort(finishes_cmp);
             fetch(`/api/all_cards/languages?scryfall_id=${scryfall_id}`)
                 .then(response => response.json())
                 .then(langs_response => {
@@ -318,6 +356,8 @@ function populate_modal(scryfall_id) {
                         var option = new Option(finish, finish);
                         finish_selector.appendChild(option);
                     }
+
+                    set_foil_overlay();
 
                     // Add default lang card to modal
                     add_card_to_modal(lang_selector.value);

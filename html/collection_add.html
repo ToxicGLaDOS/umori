@@ -30,57 +30,64 @@
     <span class="add-button-span">
         <button id="add-button" class="add-button">Add card</button>
     </span>
-    <img class="modal-card" id="modal-card"></img>
-    <table>
-        <tr>
-            <th>
-              <label for="quantity-input" class="modal-label">Quantity:</label>
-            </th>
-            <td>
-              <input id="quantity-input" type="number" class="modal-option" value="1" min="1"></input>
-            </td>
-        </tr>
-        <tr>
-            <th>
-              <label for="finish-select" class="modal-label">Finish:</label>
-            </th>
-            <td>
-              <select id="finish-select" class="modal-option"></select>
-            </td>
-        </tr>
+    <div style="display: flex">
+      <div class="modal-card"  id="modal-card">
+        <div class="modal-card-container">
+          <img class="modal-card-img" id="modal-card-img"></img>
+          <div class="foil-overlay" id="modal-card-foil-overlay"></div>
+        </div>
+      </div>
+      <table>
+          <tr>
+              <th>
+                <label for="quantity-input" class="modal-label">Quantity:</label>
+              </th>
+              <td>
+                <input id="quantity-input" type="number" class="modal-option" value="1" min="1"></input>
+              </td>
+          </tr>
+          <tr>
+              <th>
+                <label for="finish-select" class="modal-label">Finish:</label>
+              </th>
+              <td>
+                <select id="finish-select" class="modal-option"></select>
+              </td>
+          </tr>
 
-        <tr>
-            <th>
-              <label for="lang-select" class="modal-label">Language:</label>
-            </th>
-            <td>
-              <select id="lang-select" class="modal-option"></select>
-            </td>
-        </tr>
-        <tr>
-            <th>
-              <label for="signed-input" class="modal-label">Signed:</label>
-            </th>
-            <td>
-              <input id="signed-input" type="checkbox" class="modal-option"></input>
-            </td>
-        </tr>
-        <tr>
-            <th>
-              <label for="alter-input" class="modal-label">Altered:</label>
-            </th>
-            <td>
-              <input id="alter-input" type="checkbox" class="modal-option"></input>
-            </td>
-        </tr>
-        <tr>
-            <th>
-              <label for="notes" class="modal-label">Notes:</label>
-            </th>
-            <td>
-              <textarea id="notes" name="text" rows="10" cols="40" class="modal-option"></textarea>
-            </td>
-        </tr>
-    </table>
+          <tr>
+              <th>
+                <label for="lang-select" class="modal-label">Language:</label>
+              </th>
+              <td>
+                <select id="lang-select" class="modal-option"></select>
+              </td>
+          </tr>
+          <tr>
+              <th>
+                <label for="signed-input" class="modal-label">Signed:</label>
+              </th>
+              <td>
+                <input id="signed-input" type="checkbox" class="modal-option"></input>
+              </td>
+          </tr>
+          <tr>
+              <th>
+                <label for="alter-input" class="modal-label">Altered:</label>
+              </th>
+              <td>
+                <input id="alter-input" type="checkbox" class="modal-option"></input>
+              </td>
+          </tr>
+          <tr>
+              <th>
+                <label for="notes" class="modal-label">Notes:</label>
+              </th>
+              <td>
+                <textarea id="notes" name="text" rows="10" cols="40" class="modal-option"></textarea>
+              </td>
+          </tr>
+      </table>
+    </div>
   </div>
 </div>

@@ -53,9 +53,14 @@
 
 /* Preview of card in modal */
 .modal-card {
-  height: 50%;
-  float: left;
-  padding: 0px 10px 0 10px;
+  width: 30%;
+  padding: 10px;
+}
+
+.modal-card-img {
+  height: 100%;
+  width: 100%;
+  border-radius: 13px;
 }
 
 .modal-label {
