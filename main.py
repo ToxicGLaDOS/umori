@@ -225,7 +225,7 @@ def api_all_cards_search(search_text: str, page: int, default: bool):
         res = cur.execute('''SELECT COUNT(*) FROM Cards
                           WHERE LOWER(Name) LIKE %s AND DefaultLang = true''',
                           (search_string,))
-        length = res.fetchone()
+        length = res.fetchone()[0]
 
         res = cur.execute('''SELECT ID FROM Cards
                           WHERE LOWER(Name) LIKE %s AND DefaultLang = true
@@ -238,7 +238,7 @@ def api_all_cards_search(search_text: str, page: int, default: bool):
                           WHERE LOWER(Name) LIKE %s
                           ''',
                           (search_string,))
-        length = res.fetchone()
+        length = res.fetchone()[0]
 
         res = cur.execute('''SELECT ID FROM Cards
                           WHERE LOWER(Name) LIKE %s
