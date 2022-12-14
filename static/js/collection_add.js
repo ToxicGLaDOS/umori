@@ -120,6 +120,8 @@ function close_modal_and_focus_search() {
 
     var fine_filter = document.getElementById('fine-filter');
     fine_filter.value = "";
+
+    filter_page(fine_filter.value);
 }
 
 // Hides or unhides the foil overlay
@@ -406,6 +408,26 @@ function bind_full_press(element, keyup_function) {
     });
 }
 
+function filter_page(filter_text) {
+    const set_regex = /^.*\(((.+):(.+))\)$/
+    for (var card of document.getElementById('card-display').childNodes){
+        var card_title = card.querySelector('.card-quantity').innerHTML;
+        var matches = set_regex.exec(card_title);
+
+        // The set:cn part of the name
+        var set_colon_collector_number = matches[1];
+        var set = matches[2];
+        var collector_number = matches[3];
+
+        if (set.includes(filter_text) || collector_number.includes(filter_text) || set_colon_collector_number.includes(filter_text)) {
+            card.style.display = null;
+        }
+        else {
+            card.style.display = 'none';
+        }
+    }
+}
+
 async function main() {
     init_modal();
 
@@ -425,23 +447,7 @@ async function main() {
 
     fine_filter.addEventListener('input', (e) => {
         var filter_text = e.currentTarget.value;
-        const set_regex = /^.*\(((.+):(.+))\)$/
-        for (var card of document.getElementById('card-display').childNodes){
-            var card_title = card.querySelector('.card-quantity').innerHTML;
-            var matches = set_regex.exec(card_title);
-
-            // The set:cn part of the name
-            var set_colon_collector_number = matches[1];
-            var set = matches[2];
-            var collector_number = matches[3];
-
-            if (set.includes(filter_text) || collector_number.includes(filter_text) || set_colon_collector_number.includes(filter_text)) {
-                card.style.display = null;
-            }
-            else {
-                card.style.display = 'none';
-            }
-        }
+        filter_page(filter_text);
     })
 
     await initialize(create_card, load_page);
