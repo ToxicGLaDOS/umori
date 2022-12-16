@@ -181,6 +181,7 @@ function init_modal() {
         }
         var quantity_input = document.getElementById("quantity-input");
         var finish_selector = document.getElementById("finish-select");
+        var condition_selector = document.getElementById("condition-select");
         var language_selector = document.getElementById("lang-select");
         var signed_input = document.getElementById("signed-input");
         var alter_input = document.getElementById("alter-input");
@@ -190,15 +191,18 @@ function init_modal() {
         // so we don't send a bad request to the server
         if (quantity_input == null ||
             finish_selector == null ||
+            condition_selector == null ||
             language_selector == null ||
             signed_input == null ||
             alter_input == null ||
             notes_text == null) {
-            alert("Couldn't one or more elements refusing to continue. Check log for details.");
+            alert("Couldn't find one or more elements refusing to continue. Check log for details.");
             console.log("Quantity input:");
             console.log(quantity_input);
             console.log("Finish selector:");
             console.log(finish_selector);
+            console.log("Condition selector:");
+            console.log(condition_selector);
             console.log("Language selector:");
             console.log(language_selector);
             console.log("Signed input:");
@@ -216,6 +220,7 @@ function init_modal() {
             return;
         }
         var finish = finish_selector.value;
+        var condition = condition_selector.value;
         var scryfall_id = language_selector.value;
         var language = language_selector.options[language_selector.selectedIndex].text;
         var signed = signed_input.checked;
@@ -226,6 +231,7 @@ function init_modal() {
             'scryfall_id': scryfall_id,
             'quantity': quantity,
             'finish': finish,
+            'condition': condition,
             'language': language,
             'signed': signed,
             'altered': altered,

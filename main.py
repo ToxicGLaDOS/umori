@@ -335,6 +335,7 @@ def api_collection():
             scryfall_id = request_json.get('scryfall_id')
             quantity = request_json.get('quantity')
             finish = request_json.get('finish')
+            condition = request_json.get('condition')
             language = request_json.get('language')
             signed = request_json.get('signed')
             altered = request_json.get('altered')
@@ -348,6 +349,9 @@ def api_collection():
                 return json.dumps(error)
             if finish == None:
                 error = {'successful': False, 'error': f'Expected key "finish" not found in POST body.'}
+                return json.dumps(error)
+            if condition == None:
+                error = {'successful': False, 'error': f'Expected key "condition" not found in POST body.'}
                 return json.dumps(error)
 
             if language == None:
@@ -369,7 +373,10 @@ def api_collection():
             if type(quantity) != int:
                 error = {'successful': False, 'error': f'Expected key "quantity" to be an int, got {str(type(quantity).__name__)}'}
             if type(finish) != str:
-                error = {'successful': False, 'error': f'Expected key "finish" to be a str, got {str(type(language).__name__)}'}
+                error = {'successful': False, 'error': f'Expected key "finish" to be a str, got {str(type(finish).__name__)}'}
+                return json.dumps(error)
+            if type(condition) != str:
+                error = {'successful': False, 'error': f'Expected key "condition" to be a str, got {str(type(condition).__name__)}'}
                 return json.dumps(error)
             if type(language) != str:
                 error = {'successful': False, 'error': f'Expected key "language" to be a str, got {str(type(language).__name__)}'}
@@ -423,27 +430,39 @@ def api_collection():
                 return json.dumps(error)
             finish_card_id = finish_card_id[0]
 
+            res = cur.execute('''SELECT ID FROM Conditions
+                              WHERE Condition = %s
+                              ''', (condition,))
+            condition_id = res.fetchone()
+
+            if condition_id == None:
+                return json.dumps({'successful': False, 'error': f"Couldn't find a condition with name {condition} in database."})
+
+            condition_id = condition_id[0]
+
             res = cur.execute('''SELECT * FROM Collections
                               WHERE UserID = %s AND
                               FinishCardID = %s AND
+                              ConditionID = %s AND
                               Signed = %s AND
                               Altered = %s AND
                               Notes = %s
-                              ''', (user_id, finish_card_id, signed, altered, notes))
+                              ''', (user_id, finish_card_id, condition_id, signed, altered, notes))
             card_in_collection = res.fetchone() != None
 
             if card_in_collection:
                 cur.execute('''UPDATE collections SET Quantity = quantity + %s
                             WHERE UserID = %s AND
                             FinishCardID = %s AND
+                            ConditionID = %s AND
                             Signed = %s AND
                             Altered = %s AND
                             Notes = %s
-                            ''', (quantity, user_id, finish_card_id, signed, altered, notes))
+                            ''', (quantity, user_id, finish_card_id, condition_id, signed, altered, notes))
             else:
-                cur.execute('''INSERT INTO Collections(UserID, FinishCardID, Quantity, Signed, Altered, Notes)
-                            VALUES(%s, %s, %s, %s, %s, %s)
-                            ''', (user_id, finish_card_id, quantity, signed, altered, notes))
+                cur.execute('''INSERT INTO Collections(UserID, FinishCardID, ConditionID, Signed, Altered, Notes, Quantity)
+                            VALUES(%s, %s, %s, %s, %s, %s, %s)
+                            ''', (user_id, finish_card_id, condition_id, signed, altered, notes, quantity))
 
             return_obj = {'successful': True, 'card': return_card}
             con.commit()
