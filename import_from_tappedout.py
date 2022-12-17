@@ -61,7 +61,7 @@ def import_data(user: str):
         if name == 'Robo-Pinata':
             name = 'Robo-Piñata'
 
-        res = cur.execute('SELECT c.CollectorNumber FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID WHERE lower(c.name) = %s AND s.Abbreviation = %s', (name.lower(), set_abbr))
+        res = cur.execute('SELECT c.CollectorNumber FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID WHERE lower(c.name) = %s AND s.Code = %s', (name.lower(), set_abbr))
         collector_numbers = [tup[0] for tup in res.fetchall()]
 
         # We can fail to find a card with the given name if the card has multiple faces
@@ -219,7 +219,7 @@ def import_data(user: str):
                 print(f"WARNING: Tappedout doesn't have Chinese Traditional as a language option. Verify this card is actually Chinese Simplified. {name} ({set_abbr}:{collector_number})")
                 language = 'zhs'
 
-            res = cur.execute('SELECT fc.ID, fc.FinishID FROM FinishCards fc WHERE CardID IN (SELECT c.ID FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID INNER JOIN Langs l ON c.LangID = l.ID WHERE s.Abbreviation = %s AND c.CollectorNumber = %s AND l.Lang = %s)', (set_abbr, collector_number, language))
+            res = cur.execute('SELECT fc.ID, fc.FinishID FROM FinishCards fc WHERE CardID IN (SELECT c.ID FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID INNER JOIN Langs l ON c.LangID = l.ID WHERE s.Code = %s AND c.CollectorNumber = %s AND l.Lang = %s)', (set_abbr, collector_number, language))
             id_finishes = res.fetchall()
             finish_ids = [id_finish[1] for id_finish in id_finishes]
 
@@ -227,7 +227,7 @@ def import_data(user: str):
             # So if we didn't get any results then we see if that's the issue
             if len(id_finishes) == 0:
                 # Check if it was the language that was the problem
-                res = cur.execute('SELECT Langs.Lang FROM Cards INNER JOIN Langs ON Cards.LangID = Langs.ID INNER JOIN Sets ON Cards.SetID = Sets.ID WHERE sets.Abbreviation = %s AND cards.CollectorNumber = %s', (set_abbr, collector_number))
+                res = cur.execute('SELECT Langs.Lang FROM Cards INNER JOIN Langs ON Cards.LangID = Langs.ID INNER JOIN Sets ON Cards.SetID = Sets.ID WHERE sets.Code = %s AND cards.CollectorNumber = %s', (set_abbr, collector_number))
                 languages = res.fetchall()
 
                 if len(languages) > 0 and language not in languages:
@@ -240,7 +240,7 @@ def import_data(user: str):
                         print(f"Card doesn't come in this language and there are multiple to choose from. Fix it in tappedout and try again. Card: {name} ({set_abbr}:{collector_number}) {language}, Available languages: {languages}")
                         exit(1)
 
-                res = cur.execute('SELECT fc.ID, fc.FinishID FROM FinishCards fc WHERE CardID IN (SELECT c.ID FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID INNER JOIN Langs l ON c.LangID = l.ID WHERE s.Abbreviation = %s AND c.CollectorNumber = %s AND l.Lang = %s)', (set_abbr, collector_number, language))
+                res = cur.execute('SELECT fc.ID, fc.FinishID FROM FinishCards fc WHERE CardID IN (SELECT c.ID FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID INNER JOIN Langs l ON c.LangID = l.ID WHERE s.Code = %s AND c.CollectorNumber = %s AND l.Lang = %s)', (set_abbr, collector_number, language))
                 id_finishes = res.fetchall()
                 finish_ids = [id_finish[1] for id_finish in id_finishes]
 
@@ -250,7 +250,7 @@ def import_data(user: str):
             # Ex. Bruna, the Fading Light
             if len(id_finishes) == 0:
                 collector_number = get_default_collectors_number(name, set_abbr)
-                res = cur.execute('SELECT fc.ID, fc.FinishID FROM FinishCards fc WHERE CardID IN (SELECT c.ID FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID INNER JOIN Langs l ON c.LangID = l.ID WHERE s.Abbreviation = %s AND c.CollectorNumber = %s AND l.Lang = %s)', (set_abbr, collector_number, language))
+                res = cur.execute('SELECT fc.ID, fc.FinishID FROM FinishCards fc WHERE CardID IN (SELECT c.ID FROM Cards c INNER JOIN Sets s ON c.SetID = s.ID INNER JOIN Langs l ON c.LangID = l.ID WHERE s.Code = %s AND c.CollectorNumber = %s AND l.Lang = %s)', (set_abbr, collector_number, language))
                 id_finishes = res.fetchall()
                 finish_ids = [id_finish[1] for id_finish in id_finishes]
 

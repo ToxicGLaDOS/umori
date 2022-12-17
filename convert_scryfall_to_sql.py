@@ -88,10 +88,22 @@ cur.execute('''CREATE TABLE IF NOT EXISTS SetTypes
 
 cur.execute('''CREATE TABLE IF NOT EXISTS Sets
             (
-            ID           UUID    PRIMARY KEY             NOT NULL,
-            Name         VARCHAR                         NOT NULL UNIQUE,
-            TypeID       INTEGER REFERENCES SetTypes(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
-            Abbreviation VARCHAR                         NOT NULL UNIQUE
+            ID            UUID    PRIMARY KEY             NOT NULL,
+            Name          VARCHAR                         NOT NULL UNIQUE,
+            TypeID        INTEGER REFERENCES SetTypes(id) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            Code          VARCHAR                         NOT NULL UNIQUE,
+            MtgoCode      VARCHAR                                        ,
+            TcgplayerID   VARCHAR                                        ,
+            ReleasedAt    DATE                                           ,
+            BlockCode     VARCHAR                                        ,
+            Block         VARCHAR                                        ,
+            ParentSetCode VARCHAR                                        ,
+            CardCount     VARCHAR                         NOT NULL       ,
+            PrintedSize   VARCHAR                                        ,
+            Digital       VARCHAR                         NOT NULL       ,
+            FoilOnly      VARCHAR                         NOT NULL       ,
+            NonfoilOnly   VARCHAR                         NOT NULL       ,
+            IconSVGURI    VARCHAR                         NOT NULL
             )
             ''')
 
@@ -437,7 +449,19 @@ for set_type in set_types:
     set_types_id_map[set_type] = set_type_id
 
 for set_data in all_sets_data:
-    res = cur.execute('INSERT INTO Sets (ID, Name, TypeID, Abbreviation) VALUES(%s, %s, %s, %s) RETURNING ID', (set_data['id'], set_data['name'], set_types_id_map[set_data['set_type']], set_data['code']))
+    # These can be null
+    mtgo_code = set_data.get('mtgo_code')
+    tcgplayer_id = set_data.get('tgcplayer_id')
+    block_code = set_data.get('block_code')
+    block = set_data.get('block')
+    parent_set_code = set_data.get('parent_set_code')
+    printed_size = set_data.get('printed_size')
+
+    res = cur.execute('''INSERT INTO Sets (ID, Name, TypeID, Code, MtgoCode, TcgplayerID, ReleasedAt, BlockCode, Block, ParentSetCode, CardCount, PrintedSize, Digital, FoilOnly, NonfoilOnly, IconSVGURI)
+                      VALUES(%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                      RETURNING ID''',
+                      (set_data['id'], set_data['name'], set_types_id_map[set_data['set_type']], set_data['code'], mtgo_code, tcgplayer_id, set_data['released_at'], block_code, block, parent_set_code, set_data['card_count'], printed_size, set_data['digital'], set_data['foil_only'], set_data['nonfoil_only'], set_data['icon_svg_uri']))
+
     sets_id_map[set_data['name']] = set_data['id']
 
 

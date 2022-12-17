@@ -393,7 +393,7 @@ def api_collection():
 
             # TODO: Check for unexpected keys
 
-            res = cur.execute("""SELECT Cards.Name, Cards.CollectorNumber, Sets.Abbreviation FROM Cards
+            res = cur.execute("""SELECT Cards.Name, Cards.CollectorNumber, Sets.Code FROM Cards
                               INNER JOIN Sets ON Cards.SetID = Sets.ID
                               WHERE Cards.ID = %s""", (scryfall_id,))
             row = res.fetchone()
