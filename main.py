@@ -129,7 +129,7 @@ def api_collection_search(search_text: str, page: int):
                       INNER JOIN Cards cards ON finishCards.CardID = cards.ID
                       INNER JOIN Finishes finishes ON finishCards.FinishID = finishes.ID
                       WHERE colls.UserID = %s
-                      ORDER BY cards.Name
+                      ORDER BY cards.Name, cards.ReleasedAt DESC
                       ''', (user_id,))
     results = res.fetchall()
 
@@ -229,7 +229,7 @@ def api_all_cards_search(search_text: str, page: int, default: bool):
 
         res = cur.execute('''SELECT ID FROM Cards
                           WHERE LOWER(Name) LIKE %s AND DefaultLang = true
-                          ORDER BY Name
+                          ORDER BY Name, ReleasedAt DESC
                           LIMIT %s OFFSET %s
                           ''',
                           (search_string, PAGE_SIZE, page * PAGE_SIZE))
@@ -242,7 +242,7 @@ def api_all_cards_search(search_text: str, page: int, default: bool):
 
         res = cur.execute('''SELECT ID FROM Cards
                           WHERE LOWER(Name) LIKE %s
-                          ORDER BY Name
+                          ORDER BY Name, ReleasedAt DESC
                           LIMIT %s OFFSET %s
                           ''',
                           (search_string, PAGE_SIZE, page * PAGE_SIZE))
