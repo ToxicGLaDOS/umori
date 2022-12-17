@@ -661,8 +661,9 @@ def add_new(values: set, table: str, column_names: tuple[str, str]):
 
     new_values = values - values_in_db
 
-    for value in new_values:
-        cur.execute(f"INSERT INTO {table} ({columns}) VALUES(%s, %s)", (value[0], value[1]))
+    with cur.copy(f"COPY {table} ({columns}) FROM STDIN") as copy:
+        for value in new_values:
+            copy.write_row(value)
 
 add_new(color_cards, 'ColorCards', ("CardID", "ColorID"))
 add_new(color_identity_cards, 'ColorIdentityCards', ("CardID", "ColorID"))
