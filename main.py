@@ -27,31 +27,32 @@ cur.execute('''CREATE TABLE IF NOT EXISTS Users
             )
             ''')
 
-cur.execute('''CREATE TABLE IF NOT EXISTS Conditions
-            (
-            ID        INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-            Condition VARCHAR NOT NULL,
-            UNIQUE(Condition)
-            )
-            ''')
+res = cur.execute("""
+            SELECT *
+              FROM pg_type typ
+                   INNER JOIN pg_namespace nsp
+                              ON nsp.oid = typ.typnamespace
+              WHERE nsp.nspname = current_schema()
+                    AND typ.typname = 'condition'""")
 
-cur.execute("INSERT INTO Conditions(Condition) VALUES('Near Mint') ON CONFLICT DO NOTHING")
-cur.execute("INSERT INTO Conditions(Condition) VALUES('Lightly Played') ON CONFLICT DO NOTHING")
-cur.execute("INSERT INTO Conditions(Condition) VALUES('Moderately Played') ON CONFLICT DO NOTHING")
-cur.execute("INSERT INTO Conditions(Condition) VALUES('Heavily Played') ON CONFLICT DO NOTHING")
-cur.execute("INSERT INTO Conditions(Condition) VALUES('Damaged') ON CONFLICT DO NOTHING")
+# Create condition type if it doesn't exist
+condition_type = res.fetchone()
+if condition_type == None:
+    cur.execute("""CREATE TYPE condition AS ENUM
+                ('Damaged', 'Heavily Played', 'Moderately Played', 'Lightly Played', 'Near Mint')""")
+
 
 cur.execute('''CREATE TABLE IF NOT EXISTS Collections
             (
-            ID           INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-            UserID       INTEGER REFERENCES Users(ID)       DEFERRABLE INITIALLY DEFERRED NOT NULL,
-            FinishCardID INTEGER REFERENCES FinishCards(ID) DEFERRABLE INITIALLY DEFERRED NOT NULL,
-            ConditionID  INTEGER REFERENCES Conditions(ID)  DEFERRABLE INITIALLY DEFERRED NOT NULL,
-            Signed       BOOLEAN NOT NULL,
-            Altered      BOOLEAN NOT NULL,
-            Notes        VARCHAR NOT NULL,
-            Quantity     INTEGER NOT NULL,
-            UNIQUE(UserID, FinishCardID, ConditionID, Signed, Altered, Notes)
+            ID           INTEGER   PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            UserID       INTEGER   REFERENCES Users(ID)       DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            FinishCardID INTEGER   REFERENCES FinishCards(ID) DEFERRABLE INITIALLY DEFERRED NOT NULL,
+            Condition    condition NOT NULL,
+            Signed       BOOLEAN   NOT NULL,
+            Altered      BOOLEAN   NOT NULL,
+            Notes        VARCHAR   NOT NULL,
+            Quantity     INTEGER   NOT NULL,
+            UNIQUE(UserID, FinishCardID, Condition, Signed, Altered, Notes)
             )
             ''')
 
@@ -430,39 +431,29 @@ def api_collection():
                 return json.dumps(error)
             finish_card_id = finish_card_id[0]
 
-            res = cur.execute('''SELECT ID FROM Conditions
-                              WHERE Condition = %s
-                              ''', (condition,))
-            condition_id = res.fetchone()
-
-            if condition_id == None:
-                return json.dumps({'successful': False, 'error': f"Couldn't find a condition with name {condition} in database."})
-
-            condition_id = condition_id[0]
-
             res = cur.execute('''SELECT * FROM Collections
                               WHERE UserID = %s AND
                               FinishCardID = %s AND
-                              ConditionID = %s AND
+                              Condition = %s AND
                               Signed = %s AND
                               Altered = %s AND
                               Notes = %s
-                              ''', (user_id, finish_card_id, condition_id, signed, altered, notes))
+                              ''', (user_id, finish_card_id, condition, signed, altered, notes))
             card_in_collection = res.fetchone() != None
 
             if card_in_collection:
                 cur.execute('''UPDATE collections SET Quantity = quantity + %s
                             WHERE UserID = %s AND
                             FinishCardID = %s AND
-                            ConditionID = %s AND
+                            Condition = %s AND
                             Signed = %s AND
                             Altered = %s AND
                             Notes = %s
-                            ''', (quantity, user_id, finish_card_id, condition_id, signed, altered, notes))
+                            ''', (quantity, user_id, finish_card_id, condition, signed, altered, notes))
             else:
-                cur.execute('''INSERT INTO Collections(UserID, FinishCardID, ConditionID, Signed, Altered, Notes, Quantity)
+                cur.execute('''INSERT INTO Collections(UserID, FinishCardID, Condition, Signed, Altered, Notes, Quantity)
                             VALUES(%s, %s, %s, %s, %s, %s, %s)
-                            ''', (user_id, finish_card_id, condition_id, signed, altered, notes, quantity))
+                            ''', (user_id, finish_card_id, condition, signed, altered, notes, quantity))
 
             return_obj = {'successful': True, 'card': return_card}
             con.commit()
