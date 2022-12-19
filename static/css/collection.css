@@ -20,6 +20,9 @@
     position: relative;
     padding: 10px;
 }
+.card-image-container {
+    position: relative;
+}
 .card-image {
     width: 250px;
     height: auto;

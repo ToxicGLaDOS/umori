@@ -2,30 +2,20 @@ import {create_page_nav, add_page, initialize} from './paged_cards.js'
 
 // Takes a dict containing elements of output.csv and
 // an image_src and returns a div containing a card
-function create_card(card) {
-    var card_div = document.createElement("div");
-    card_div.className = 'card-div';
-    card_div.tabIndex = 0;
+function create_card(card_data) {
+    var template = document.getElementById("card-template");
+    var card = template.content.firstElementChild.cloneNode(true);
 
-    var image_div = document.createElement("div");
-    image_div.style.position = 'relative';
+    var image = card.querySelector('.card-image')
+    image.src = card_data.image_src;
 
-    var image = document.createElement("img");
-    image.src = card.image_src;
-    image.loading = "lazy";
-    image.className = "card-image";
-    var title = document.createElement("div");
-    title.innerHTML = `${card.name} (${card.set}:${card.collector_number})`;
-    title.className = 'card-quantity';
-
-    card_div.appendChild(title);
-    card_div.appendChild(image_div);
-    image_div.appendChild(image);
+    var title = card.querySelector('.card-quantity')
+    title.innerHTML = `${card_data.name} (${card_data.set}:${card_data.collector_number})`;
 
     // There must be a better way to get the width
     // of text than actually putting in the dom and getting the value
     // but I can't find it.
-    document.body.appendChild(card_div);
+    document.body.appendChild(card);
 
     while (title.getBoundingClientRect().width > image.getBoundingClientRect().width) {
         var font_size = window.getComputedStyle(title).getPropertyValue("font-size");
@@ -34,15 +24,16 @@ function create_card(card) {
 
     // nonfoil and glossy are the 2 nonfoil options
     // foil and etched are both foils
-    if (!(card.finishes.includes('nonfoil') || card.finishes.includes('glossy'))){
+    if (!(card_data.finishes.includes('nonfoil') || card_data.finishes.includes('glossy'))){
+        var image_container = card.querySelector('.card-image-container')
         var foil_overlay = document.createElement("div");
         foil_overlay.className = 'foil-overlay';
-        image_div.appendChild(foil_overlay);
+        image_container.appendChild(foil_overlay);
     }
 
-    document.body.removeChild(card_div);
+    document.body.removeChild(card);
 
-    return card_div;
+    return card;
 }
 
 async function load_page(page_num, search_query) {

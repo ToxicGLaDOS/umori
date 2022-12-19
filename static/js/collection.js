@@ -2,44 +2,36 @@ import {create_page_nav, add_page, initialize} from './paged_cards.js'
 
 // Takes a dict containing elements of output.csv and
 // an image_src and returns a div containing a card
-function create_card(card) {
-    var card_div = document.createElement("div");
-    card_div.className = 'card-div';
+function create_card(card_data) {
+    var template = document.getElementById("card-template");
+    var card = template.content.firstElementChild.cloneNode(true);
 
-    var image_div = document.createElement("div");
-    image_div.style.position = 'relative';
+    var image = card.querySelector(".card-image");
+    image.src = card_data.image_src;
 
-    var image = document.createElement("img");
-    image.src = card.image_src;
-    image.loading = "lazy";
-    image.className = "card-image";
-    var quantity_text = document.createElement("div");
-    quantity_text.innerHTML = `${card.name} (${card.quantity})`;
-    quantity_text.className = 'card-quantity';
-
-    card_div.appendChild(quantity_text);
-    card_div.appendChild(image_div);
-    image_div.appendChild(image);
+    var quantity_text = card.querySelector(".card-quantity");
+    quantity_text.innerHTML = `${card_data.name} (${card_data.quantity})`;
 
     // There must be a better way to get the width
     // of text than actually putting in the dom and getting the value
     // but I can't find it.
-    document.body.appendChild(card_div);
+    document.body.appendChild(card);
 
     while (quantity_text.getBoundingClientRect().width > image.getBoundingClientRect().width) {
         var font_size = window.getComputedStyle(quantity_text).getPropertyValue("font-size");
         quantity_text.style.fontSize = parseInt(font_size, 10) - 1;
     }
 
-    if (card.finish == 'foil' || card.finish == 'etched'){
+    if (card_data.finish == 'foil' || card_data.finish == 'etched'){
+        var image_container = card.querySelector(".card-image-container");
         var foil_overlay = document.createElement("div");
         foil_overlay.className = 'foil-overlay';
-        image_div.appendChild(foil_overlay);
+        image_container.appendChild(foil_overlay);
     }
 
-    document.body.removeChild(card_div);
+    document.body.removeChild(card);
 
-    return card_div;
+    return card;
 }
 
 async function load_page(page_num, search_query) {
