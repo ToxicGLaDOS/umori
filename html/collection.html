@@ -1,4 +1,5 @@
 <head>
+  <link rel="stylesheet" href="/static/css/paged_cards.css">
   <link rel="stylesheet" href="/static/css/collection.css">
 </head>
 <script type=module src="static/js/collection.js"></script>
@@ -7,11 +8,25 @@
 </div>
 <div display="grid" id="card-display"></div>
 </table>
+<div id="notification-container">
+</div>
 <template id="card-template">
   <div class="card-div">
     <div class="card-quantity"></div>
     <div class="card-image-container">
       <img loading="lazy" class="card-image"></img>
+      <div class="card-button-container">
+        <button class="plus-button">+</button>
+        <button class="minus-button">-</button>
+      </div>
     </div>
+  </div>
+</template>
+<template id="notification-success-template">
+  <div class="notification notification-success">
+  </div>
+</template>
+<template id="notification-failure-template">
+  <div class="notification notification-failure">
   </div>
 </template>

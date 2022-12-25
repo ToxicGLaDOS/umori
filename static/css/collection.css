@@ -28,6 +28,33 @@
     height: auto;
     border-radius: 10px;
 }
+.card-button-container {
+    display: flex;
+    position: absolute;
+    top: 20%;
+    right: 0;
+    flex-direction: column;
+}
+.plus-button {
+    aspect-ratio: 1;
+    color: white;
+    width: 50px;
+    font-size: 30px;
+    background-color: rgba(249,250,251,0);
+    border: 2px solid rgba(255,255,255,.5);
+}
+.minus-button {
+    aspect-ratio: 1;
+    color: white;
+    width: 50px;
+    font-size: 30px;
+    background-color: rgba(249,250,251,0);
+    border: 2px solid rgba(255,255,255,.5);
+}
+.add-card-button {
+    width: 40px;
+    padding: 10px;
+}
 .modal-card-container {
   position: relative;
   /* To see what these do try zooming in */
@@ -43,6 +70,7 @@
     top: 0;
     left: 0;
     opacity: 0.2;
+    pointer-events: none; /* Allows us to click through it to the buttons below */
 }
 .grid {
     display: block;

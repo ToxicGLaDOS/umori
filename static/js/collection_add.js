@@ -1,4 +1,4 @@
-import {create_page_nav, add_page, initialize} from './paged_cards.js'
+import {create_page_nav, add_page, initialize, create_notification} from './paged_cards.js'
 
 // Takes a dict containing elements of output.csv and
 // an image_src and returns a div containing a card
@@ -54,35 +54,6 @@ async function load_page(page_num, search_query) {
     }
 
     add_page(response.cards, create_card);
-}
-
-function create_notification(text, success) {
-    var container = document.getElementById("notification-container");
-
-    if (success) {
-        var template = document.getElementById("notification-success-template");
-    }
-    else {
-        var template = document.getElementById("notification-failure-template");
-    }
-
-    var notification = template.content.firstElementChild.cloneNode(true);
-    notification.innerHTML = text;
-    container.appendChild(notification);
-
-    // Remove notifiction on click
-    notification.addEventListener('click', (e) => {
-        e.target.parentNode.removeChild(e.target);
-    });
-
-    setTimeout(() => {
-        // Check if we already removed the notification
-        if (notification.parentNode) {
-            notification.parentNode.removeChild(notification)
-        }
-    }, 5000);
-
-    return notification;
 }
 
 function open_modal() {

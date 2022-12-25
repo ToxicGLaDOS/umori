@@ -77,6 +77,35 @@ async function add_page(cards_data, create_card) {
         });
 }
 
+function create_notification(text, success) {
+    var container = document.getElementById("notification-container");
+
+    if (success) {
+        var template = document.getElementById("notification-success-template");
+    }
+    else {
+        var template = document.getElementById("notification-failure-template");
+    }
+
+    var notification = template.content.firstElementChild.cloneNode(true);
+    notification.innerHTML = text;
+    container.appendChild(notification);
+
+    // Remove notifiction on click
+    notification.addEventListener('click', (e) => {
+        e.target.parentNode.removeChild(e.target);
+    });
+
+    setTimeout(() => {
+        // Check if we already removed the notification
+        if (notification.parentNode) {
+            notification.parentNode.removeChild(notification)
+        }
+    }, 5000);
+
+    return notification;
+}
+
 async function create_page_nav(collection_length) {
     var num_pages = Math.ceil(collection_length / PAGE_SIZE);
     var highest_page = num_pages - 1;
@@ -178,4 +207,4 @@ async function initialize(create_card, load_page) {
     })
 }
 
-export {create_page_nav, add_page, initialize}
+export {create_page_nav, add_page, initialize, create_notification}

@@ -1,0 +1,31 @@
+#notification-container {
+  position: fixed;
+  right: 0;
+  top: 0;
+  padding: 10px;
+}
+
+.notification {
+  max-width: 25vw;
+  margin: 10px;
+  width: fit-content;
+  padding: 10px;
+  margin-left: auto;
+  border-radius: 25px;
+}
+
+.notification:hover,
+.notification:focus {
+  filter: brightness(85%);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.notification-success {
+  background-color: #090d;
+}
+
+.notification-failure {
+  background-color: #900d;
+  color: #eee
+}

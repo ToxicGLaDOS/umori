@@ -125,18 +125,21 @@ def api_collection_search(search_text: str, page: int):
 
     user_id = user_id[0]
 
-    res = cur.execute('''SELECT cards.ID, cards.Name, finishes.Finish, colls.Quantity FROM Collections colls
+    res = cur.execute('''SELECT cards.ID, cards.Name, finishes.Finish, colls.Condition, langs.Lang, colls.Signed, colls.Altered, colls.Notes, colls.Quantity FROM Collections colls
                       INNER JOIN FinishCards finishCards ON colls.FinishCardID = finishCards.ID
                       INNER JOIN Cards cards ON finishCards.CardID = cards.ID
                       INNER JOIN Finishes finishes ON finishCards.FinishID = finishes.ID
+                      INNER JOIN Langs langs ON cards.langID = langs.ID
                       WHERE colls.UserID = %s
                       ORDER BY cards.Name, cards.ReleasedAt DESC
                       ''', (user_id,))
     results = res.fetchall()
 
-    for id_, name, finish, quantity in results:
+    for id_, name, finish, condition, language, signed, altered, notes, quantity in results:
         if search_text.lower() in name.lower():
-            cards.append({'scryfall_id': str(id_), 'finish': finish, 'quantity': quantity})
+            cards.append({'scryfall_id': str(id_), 'finish': finish, 'quantity': quantity,
+                          'condition': condition, 'language': language, 'signed': signed,
+                          'altered': altered, 'notes': notes})
 
     length = len(cards)
 
@@ -383,13 +386,13 @@ def api_collection():
                 error = {'successful': False, 'error': f'Expected key "language" to be a str, got {str(type(language).__name__)}'}
                 return json.dumps(error)
             if type(signed) != bool:
-                error = {'successful': False, 'error': f'Expected key "quantity" to be a bool, got {str(type(signed).__name__)}'}
+                error = {'successful': False, 'error': f'Expected key "signed" to be a bool, got {str(type(signed).__name__)}'}
                 return json.dumps(error)
             if type(altered) != bool:
-                error = {'successful': False, 'error': f'Expected key "quantity" to be a bool, got {str(type(altered).__name__)}'}
+                error = {'successful': False, 'error': f'Expected key "altered" to be a bool, got {str(type(altered).__name__)}'}
                 return json.dumps(error)
             if type(notes) != str:
-                error = {'successful': False, 'error': f'Expected key "quantity" to be a str, got {str(type(notes).__name__)}'}
+                error = {'successful': False, 'error': f'Expected key "notes" to be a str, got {str(type(notes).__name__)}'}
                 return json.dumps(error)
 
             # TODO: Check for unexpected keys
@@ -431,7 +434,7 @@ def api_collection():
                 return json.dumps(error)
             finish_card_id = finish_card_id[0]
 
-            res = cur.execute('''SELECT * FROM Collections
+            res = cur.execute('''SELECT Quantity FROM Collections
                               WHERE UserID = %s AND
                               FinishCardID = %s AND
                               Condition = %s AND
@@ -439,23 +442,46 @@ def api_collection():
                               Altered = %s AND
                               Notes = %s
                               ''', (user_id, finish_card_id, condition, signed, altered, notes))
-            card_in_collection = res.fetchone() != None
+            original_quantity = res.fetchone()
+            card_in_collection = original_quantity != None
 
             if card_in_collection:
-                cur.execute('''UPDATE collections SET Quantity = quantity + %s
+                original_quantity = original_quantity[0]
+                res = cur.execute('''UPDATE collections SET Quantity = quantity + %s
                             WHERE UserID = %s AND
                             FinishCardID = %s AND
                             Condition = %s AND
                             Signed = %s AND
                             Altered = %s AND
                             Notes = %s
+                            RETURNING Quantity
                             ''', (quantity, user_id, finish_card_id, condition, signed, altered, notes))
+                updated_quantity = res.fetchone()[0]
             else:
-                cur.execute('''INSERT INTO Collections(UserID, FinishCardID, Condition, Signed, Altered, Notes, Quantity)
+                original_quantity = 0
+                res = cur.execute('''INSERT INTO Collections(UserID, FinishCardID, Condition, Signed, Altered, Notes, Quantity)
                             VALUES(%s, %s, %s, %s, %s, %s, %s)
+                            RETURNING Quantity
                             ''', (user_id, finish_card_id, condition, signed, altered, notes, quantity))
+                updated_quantity = res.fetchone()[0]
 
-            return_obj = {'successful': True, 'card': return_card}
+            # If we get a request to have 0 or negative updated_quantity we delete the row
+            # This can happen if the user clicks the - button
+            # while having 0 in the collection
+            if updated_quantity <= 0:
+                cur.execute('''DELETE FROM collections
+                        WHERE UserID = %s AND
+                        FinishCardID = %s AND
+                        Condition = %s AND
+                        Signed = %s AND
+                        Altered = %s AND
+                        Notes = %s
+                        ''', (user_id, finish_card_id, condition, signed, altered, notes))
+                updated_quantity = 0
+
+            delta = updated_quantity - original_quantity
+
+            return_obj = {'successful': True, 'card': return_card, 'delta': delta, 'new_total': updated_quantity}
             con.commit()
             return json.dumps(return_obj)
         else:

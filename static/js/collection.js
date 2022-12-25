@@ -1,4 +1,48 @@
-import {create_page_nav, add_page, initialize} from './paged_cards.js'
+import {create_page_nav, add_page, initialize, create_notification} from './paged_cards.js'
+
+function plus_minus_listener(card, card_data, amount){
+    var quantity_text = card.querySelector(".card-quantity");
+    var message_body = {
+        'scryfall_id': card_data['scryfall_id'],
+        'quantity': amount,
+        'finish': card_data['finish'],
+        'condition': card_data['condition'],
+        'language': card_data['language'],
+        'signed': card_data['signed'],
+        'altered': card_data['altered'],
+        'notes': card_data['notes']
+    };
+    fetch(`/api/collection`, {
+        method: 'POST',
+        headers: {
+            'Content-Type':'application/json'
+        },
+        body: JSON.stringify(message_body)
+    })
+        .then(response => response.json())
+        .then(json_response => {
+            if (!json_response.successful) {
+                if (amount > 0){
+                    create_notification(`Adding card failed. Error was ${json_response.error}`);
+                }
+                else {
+                    create_notification(`Removing card failed. Error was ${json_response.error}`);
+                }
+            }
+            else {
+                var card = json_response.card;
+                var delta = json_response.delta;
+                var new_total = json_response.new_total;
+                if (delta > 0){
+                    create_notification(`Successfully added ${delta}x ${card.name}`, true);
+                }
+                else {
+                    create_notification(`Successfully removed ${delta*-1}x ${card.name}`, false);
+                }
+                quantity_text.innerHTML = `${card.name} (${new_total})`;
+            }
+        });
+}
 
 // Takes a dict containing elements of output.csv and
 // an image_src and returns a div containing a card
@@ -11,6 +55,17 @@ function create_card(card_data) {
 
     var quantity_text = card.querySelector(".card-quantity");
     quantity_text.innerHTML = `${card_data.name} (${card_data.quantity})`;
+
+    var plus_button = card.querySelector(".plus-button");
+    var minus_button = card.querySelector(".minus-button");
+
+    plus_button.addEventListener('click', () => {
+        plus_minus_listener(card, card_data, 1);
+    });
+
+    minus_button.addEventListener('click', () => {
+        plus_minus_listener(card, card_data, -1);
+    });
 
     // There must be a better way to get the width
     // of text than actually putting in the dom and getting the value
