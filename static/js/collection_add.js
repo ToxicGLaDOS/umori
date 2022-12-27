@@ -387,7 +387,7 @@ function filter_page(filter_text) {
         var set = matches[2];
         var collector_number = matches[3];
 
-        if (set.includes(filter_text) || collector_number.includes(filter_text) || set_colon_collector_number.includes(filter_text)) {
+        if (set.startsWith(filter_text) || collector_number.startsWith(filter_text) || set_colon_collector_number.startsWith(filter_text)) {
             card.style.display = null;
         }
         else {
