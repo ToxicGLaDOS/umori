@@ -1,4 +1,5 @@
 import {create_page_nav, add_page, initialize, create_notification} from './paged_cards.js'
+import {init_modal, populate_modal, set_modal_card, close_modal} from './card_details_modal.js'
 
 function plus_minus_listener(card, card_data, amount){
     var quantity_text = card.querySelector(".card-quantity");
@@ -58,6 +59,7 @@ function create_card(card_data) {
 
     var plus_button = card.querySelector(".plus-button");
     var minus_button = card.querySelector(".minus-button");
+    var edit_button = card.querySelector(".edit-button");
 
     plus_button.addEventListener('click', () => {
         plus_minus_listener(card, card_data, 1);
@@ -65,6 +67,11 @@ function create_card(card_data) {
 
     minus_button.addEventListener('click', () => {
         plus_minus_listener(card, card_data, -1);
+    });
+
+    edit_button.addEventListener('click', () => {
+        populate_modal(card_data.scryfall_id, card_data);
+        console.log(card_data);
     });
 
     // There must be a better way to get the width
@@ -89,6 +96,90 @@ function create_card(card_data) {
     return card;
 }
 
+function commit_card_changes() {
+        var quantity_input = document.getElementById("quantity-input");
+        var finish_selector = document.getElementById("finish-select");
+        var condition_selector = document.getElementById("condition-select");
+        var language_selector = document.getElementById("lang-select");
+        var signed_input = document.getElementById("signed-input");
+        var alter_input = document.getElementById("alter-input");
+        var notes_text = document.getElementById("notes");
+
+        // We ensure that we've found all the elements
+        // so we don't send a bad request to the server
+        if (quantity_input == null ||
+            finish_selector == null ||
+            condition_selector == null ||
+            language_selector == null ||
+            signed_input == null ||
+            alter_input == null ||
+            notes_text == null) {
+            alert("Couldn't find one or more elements refusing to continue. Check log for details.");
+            console.log("Quantity input:");
+            console.log(quantity_input);
+            console.log("Finish selector:");
+            console.log(finish_selector);
+            console.log("Condition selector:");
+            console.log(condition_selector);
+            console.log("Language selector:");
+            console.log(language_selector);
+            console.log("Signed input:");
+            console.log(signed_input);
+            console.log("Alter input:");
+            console.log(alter_input);
+            console.log("Notes text:");
+            console.log(notes_text);
+            return;
+        }
+
+        var quantity = quantity_input.valueAsNumber;
+        if (isNaN(quantity)) {
+            alert("Quantity is NaN, refusing to continue.");
+            return;
+        }
+        // We expect populate_modal() to have saved _card_data for us
+        var original_card_data = document.getElementById("myModal")._card_data;
+        var finish = finish_selector.value;
+        var condition = condition_selector.value;
+        var language = language_selector.options[language_selector.selectedIndex].text;
+        var signed = signed_input.checked;
+        var altered = alter_input.checked;
+        var notes = notes_text.value;
+        var message_body = {
+            'target': {
+                'scryfall_id': original_card_data.scryfall_id,
+                'finish': original_card_data.finish,
+                'condition': original_card_data.condition,
+                'signed': original_card_data.signed,
+                'altered': original_card_data.altered,
+                'notes': original_card_data.notes
+            },
+            'replacement': {
+                'finish': finish,
+                'condition': condition,
+                'language': language,
+                'signed': signed,
+                'altered': altered,
+                'notes': notes
+            }
+        };
+
+        fetch(`/api/collection`, {
+            method: 'PATCH',
+            headers: {
+                'Content-Type':'application/json'
+            },
+            body: JSON.stringify(message_body)
+        })
+        .then(response => response.json())
+        .then(json_response => {
+            if (!json_response.successful) {
+                create_notification(json_response.error, false);
+                return;
+            }
+        })
+}
+
 async function load_page(page_num, search_query) {
     if (search_query) {
         var response = await fetch(`/api/collection?page=${page_num}&query=search&text=${search_query}`)
@@ -109,6 +200,16 @@ async function load_page(page_num, search_query) {
 
 async function main() {
     await initialize(create_card, load_page);
+    init_modal();
+    var save_button = document.getElementById("commit-button");
+    save_button.addEventListener('click', (e) => {
+        // Don't accept repeats
+        if (e.repeat) {
+            return;
+        }
+        commit_card_changes()
+    })
+
 }
 
 

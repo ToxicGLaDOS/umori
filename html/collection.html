@@ -1,5 +1,6 @@
 <head>
   <link rel="stylesheet" href="/static/css/paged_cards.css">
+  <link rel="stylesheet" href="/static/css/modal.css">
   <link rel="stylesheet" href="/static/css/collection.css">
 </head>
 <script type=module src="static/js/collection.js"></script>
@@ -16,8 +17,9 @@
     <div class="card-image-container">
       <img loading="lazy" class="card-image"></img>
       <div class="card-button-container">
-        <button class="plus-button">+</button>
-        <button class="minus-button">-</button>
+        <button class="plus-button card-button">+</button>
+        <button class="minus-button card-button">-</button>
+        <button class="edit-button card-button">></button>
       </div>
     </div>
   </div>
@@ -30,3 +32,87 @@
   <div class="notification notification-failure">
   </div>
 </template>
+
+<!-- The Modal -->
+<div id="myModal" class="modal">
+
+  <!-- Modal content -->
+  <div class="modal-content">
+    <span class="modal-close">&times;</span>
+    <span class="commit-button-span">
+        <button id="commit-button" class="commit-button">Save changes</button>
+    </span>
+    <div style="display: flex">
+      <div class="modal-card"  id="modal-card">
+        <div class="modal-card-container">
+          <img class="modal-card-img" id="modal-card-img"></img>
+          <div class="foil-overlay" id="modal-card-foil-overlay"></div>
+        </div>
+      </div>
+      <table>
+          <tr>
+              <th>
+                <label for="quantity-input" class="modal-label">Quantity:</label>
+              </th>
+              <td>
+                <input id="quantity-input" type="number" class="modal-option" value="1" min="1"></input>
+              </td>
+          </tr>
+          <tr>
+              <th>
+                <label for="finish-select" class="modal-label">Finish:</label>
+              </th>
+              <td>
+                <select id="finish-select" class="modal-option"></select>
+              </td>
+          </tr>
+          <tr>
+              <th>
+                <label for="condition-select" class="modal-label">Condition:</label>
+              </th>
+              <td>
+                <select id="condition-select" class="modal-option">
+                  <option>Near Mint</option>
+                  <option>Lightly Played</option>
+                  <option>Moderately Played</option>
+                  <option>Heavily Played</option>
+                  <option>Damaged</option>
+                </select>
+              </td>
+          </tr>
+          <tr>
+              <th>
+                <label for="lang-select" class="modal-label">Language:</label>
+              </th>
+              <td>
+                <select id="lang-select" class="modal-option"></select>
+              </td>
+          </tr>
+          <tr>
+              <th>
+                <label for="signed-input" class="modal-label">Signed:</label>
+              </th>
+              <td>
+                <input id="signed-input" type="checkbox" class="modal-option"></input>
+              </td>
+          </tr>
+          <tr>
+              <th>
+                <label for="alter-input" class="modal-label">Altered:</label>
+              </th>
+              <td>
+                <input id="alter-input" type="checkbox" class="modal-option"></input>
+              </td>
+          </tr>
+          <tr>
+              <th>
+                <label for="notes" class="modal-label">Notes:</label>
+              </th>
+              <td>
+                <textarea id="notes" name="text" rows="10" cols="40" class="modal-option"></textarea>
+              </td>
+          </tr>
+      </table>
+    </div>
+  </div>
+</div>

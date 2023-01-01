@@ -207,7 +207,8 @@ cur.execute('''CREATE TABLE IF NOT EXISTS Cards
                FullArt                 BOOLEAN                                               NOT NULL,
                Textless                BOOLEAN                                               NOT NULL,
                Booster                 BOOLEAN                                               NOT NULL,
-               StorySpotlight          BOOLEAN                                               NOT NULL
+               StorySpotlight          BOOLEAN                                               NOT NULL,
+               UNIQUE(SetID, CollectorNumber, LangID)
                )
              ''')
 
