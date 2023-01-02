@@ -50,6 +50,7 @@
     top: 0;
     left: 0;
     opacity: 0.2;
+    visibility: hidden; /* Hidden by default */
     pointer-events: none; /* Allows us to click through it to the buttons below */
 }
 .grid {

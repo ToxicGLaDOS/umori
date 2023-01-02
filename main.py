@@ -108,22 +108,28 @@ def get_database_connection():
     con = psycopg.connect(user = "postgres", password = "password", host = "127.0.0.1", port = "5432")
     return con
 
-
-
-def api_collection_search(search_text: str, page: int):
-    con = get_database_connection()
-    cur = con.cursor()
-
-    cards = []
+def get_user_id(cur: psycopg.Cursor) -> tuple[int, None] | tuple[None, dict]:
     username = flask_login.current_user.id
 
     res = cur.execute('SELECT ID FROM Users WHERE Username = %s', (username,))
     user_id = res.fetchone()
 
     if user_id == None:
-        return json.dumps({'successful': False, 'error': "Couldn't find user ID in database."})
+        return (None, {'successful': False, 'error': "Couldn't find user ID in database."})
 
     user_id = user_id[0]
+
+    return (user_id, None)
+
+def api_collection_search(search_text: str, page: int):
+    con = get_database_connection()
+    cur = con.cursor()
+
+    cards = []
+
+    user_id, error = get_user_id(cur)
+    if error:
+        return json.dumps(error)
 
     res = cur.execute('''SELECT colls.ID, cards.ID, cards.Name, finishes.Finish, colls.Condition, langs.Lang, colls.Signed, colls.Altered, colls.Notes, colls.Quantity FROM Collections colls
                       INNER JOIN FinishCards finishCards ON colls.FinishCardID = finishCards.ID
@@ -287,23 +293,46 @@ def api_all_cards():
     else:
         return api_all_cards_search('', page, default)
 
-def get_other_language_id(scryfall_id: str, lang: str):
+def get_other_language_id(scryfall_id: str, lang: str) -> tuple[str, None] | tuple[None, dict]:
     res = cur.execute('''SELECT SetID, CollectorNumber FROM Cards
                       WHERE ID = %s''', (scryfall_id,))
 
-    set_id, collector_number = res.fetchone()[0]
+
+    set_id_collector_number = res.fetchone()
+    if set_id_collector_number == None:
+        error = {'successful': False, 'error': "Couldn't find card with ID \"{scryfall_id}\""}
+        return None, error
+
+    set_id, collector_number = set_id_collector_number
 
     res = cur.execute('''SELECT ID FROM Langs
                       WHERE Lang = %s
                       ''', (lang,))
 
-    lang_id = res.fetchone()[0]
+    lang_id = res.fetchone()
+    if lang_id == None:
+        error = {'successful': False, 'error': f"Couldn't find lang \"{lang}\""}
+        return None, error
+
+    lang_id = lang_id[0]
 
     res = cur.execute('''SELECT ID FROM Cards
-                      WHERE SetID = %s
-                      CollectorNumber = %s
-                      LangID = %s
+                      WHERE
+                        SetID = %s AND
+                        CollectorNumber = %s AND
+                        LangID = %s
                       ''', (set_id, collector_number, lang_id))
+
+    scryfall_id = res.fetchone()
+
+    if scryfall_id == None:
+        # TODO: Improve this error message
+        error = {'successful': False, 'error': f"Couldn't find card that card in that language"}
+        return None, error
+
+    scryfall_id = str(scryfall_id[0])
+
+    return scryfall_id, None
 
 
 def get_finish_card_id(finish: str, scryfall_id: str) -> tuple[None, int] | tuple[dict, None]:
@@ -332,6 +361,54 @@ def get_finish_card_id(finish: str, scryfall_id: str) -> tuple[None, int] | tupl
 
     return error, finish_card_id
 
+@app.route("/api/collection/by_id", methods = ['GET'])
+def api_collection_by_id():
+    con = get_database_connection()
+    cur = con.cursor()
+
+    user_id, error = get_user_id(cur)
+    if error:
+        return json.dumps(error)
+
+    args = request.args
+    collection_id = args.get('collection_id')
+    print(collection_id)
+    if collection_id == None:
+        error = {'successful': False, 'error': "Didn't find expected query parameter \"collection_id\""}
+        return json.dumps(error)
+
+    cur.execute('''SELECT
+                     Finishes.Finish,
+                     Colls.Condition,
+                     Colls.Signed,
+                     Colls.Altered,
+                     Colls.Notes,
+                     Colls.Quantity
+                   FROM Collections as Colls
+                   INNER JOIN FinishCards ON Colls.FinishCardID = FinishCards.ID
+                   INNER JOIN Finishes ON Finishes.ID = FinishCards.FinishID
+                WHERE
+                  Colls.ID = %s AND
+                  Colls.UserID = %s
+                ''', (collection_id, user_id))
+    res = cur.fetchone()
+
+    if res == None:
+        error = {'successful': False, 'error': "Couldn't find card in your collection with that ID, data might be old. Try refreshing"}
+        return json.dumps(error)
+
+    finish, condition, signed, altered, notes, quantity = res
+    card = {
+        'finish': finish,
+        'condition': condition,
+        'signed': signed,
+        'altered': altered,
+        'notes': notes,
+        'quantity': quantity
+    }
+
+    return_obj = {'successful': True, 'card': card}
+    return json.dumps(return_obj)
 
 @app.route("/api/collection", methods = ['POST', 'GET', 'PATCH'])
 def api_collection():
@@ -519,98 +596,105 @@ def api_collection():
         con = get_database_connection()
         cur = con.cursor()
 
-        username = flask_login.current_user.id
 
-        res = cur.execute('SELECT ID FROM Users WHERE Username = %s', (username,))
-        user_id = res.fetchone()
-
-        if user_id == None:
-            return json.dumps({'successful': False, 'error': "Couldn't find user ID in database."})
-
-        user_id = user_id[0]
+        user_id, error = get_user_id(cur)
+        if error != None:
+            return json.dumps(error)
 
         request_json = request.json
         if request_json == None or request_json == "":
                 error = {'successful': False, 'error': f"Expected content, got empty PATCH body"}
                 return json.dumps(error)
 
-        target_card = request_json.get('target')
+        target_card_id = request_json.get('target')
         replacement_card = request_json.get('replacement')
-        if target_card == None:
+        if target_card_id == None:
             error = {'successful': False, 'error': f"Didn't find expected key 'target' in PATCH body"}
             return json.dumps(error)
         if replacement_card == None:
             error = {'successful': False, 'error': f"Didn't find expected key 'replacement' in PATCH body"}
             return json.dumps(error)
 
+        # TODO: Type check target and replacement
+        # TODO: Make sure to handle quantity
 
-
-        target_required_keys = {"scryfall_id": str,
-                                "finish": str,
-                                "condition": str,
-                                "signed": bool,
-                                "altered": bool,
-                                "notes": str}
-
-        for key_name, key_type in target_required_keys.items():
-            if target_card.get(key_name) == None:
-                error = {'successful': False, 'error': f"Didn't find expected key 'target.{key_name}' in PATCH body"}
-                return json.dumps(error)
-
-            value = target_card[key_name]
-            if type(value) != key_type:
-                error = {'successful': False, 'error': f"Expected key 'target.{key_name}' to be of type {key_type}, but got {type(value)}"}
-
-        # Make sure to handle quantity
-
-        error, target_finish_card_id = get_finish_card_id(target_card['finish'], target_card['scryfall_id'])
-        if error != None:
-            return json.dumps(error)
-
-        res = cur.execute('''SELECT FinishCardID, Condition, Signed, Altered, Notes FROM Collections
+        res = cur.execute('''SELECT
+                                Colls.FinishCardID,
+                                FinishCards.CardID,
+                                Colls.Quantity,
+                                Colls.Condition,
+                                Colls.Signed,
+                                Colls.Altered,
+                                Colls.Notes,
+                                Langs.Lang,
+                                Cards.Name,
+                                Cards.NormalImageURI FROM Collections as Colls
+                          INNER JOIN FinishCards ON Colls.FinishCardID = FinishCards.ID
+                          INNER JOIN Cards ON FinishCards.CardID = Cards.ID
+                          INNER JOIN Langs ON Cards.LangID = Langs.ID
                           WHERE
-                            UserID = %s AND
-                            FinishCardID = %s AND
-                            Condition = %s AND
-                            Signed = %s AND
-                            Altered = %s AND
-                            Notes = %s
-                          ''', (user_id, target_finish_card_id, target_card['condition'], target_card['signed'], target_card['altered'], target_card['notes']))
+                            Colls.ID = %s AND
+                            Colls.UserID = %s
+                          ''', (target_card_id, user_id))
         defaults = res.fetchone()
         if defaults == None:
             error = {'successful': False, 'error': f"Couldn't find target card in database"}
             return json.dumps(error)
 
-        default_finish_card_id, default_condition, default_signed, default_altered, default_notes = defaults
+        default_finish_card_id, default_scryfall_id, default_quantity, default_condition, default_signed, default_altered, default_notes, default_lang, card_name, normal_image_uri = defaults
+
+        replacement_lang = replacement_card.get('language', default_lang)
+        # Changing languages means we need to change scryfall_id as well
+        scryfall_id, error = get_other_language_id(default_scryfall_id, replacement_lang)
+        if scryfall_id == None:
+            return json.dumps(error)
+
+        print(default_lang, default_scryfall_id, replacement_lang, scryfall_id)
 
         replacement_finish = replacement_card.get('finish', default_finish_card_id)
-        error, replacement_finish_card_id = get_finish_card_id(replacement_finish, target_card['scryfall_id'])
+        error, replacement_finish_card_id = get_finish_card_id(replacement_finish, scryfall_id)
         if error != None:
             return json.dumps(error)
 
+        replacement_quantity = replacement_card.get('quantity', default_quantity)
         replacement_condition = replacement_card.get('condition', default_condition)
         replacement_signed = replacement_card.get('signed', default_signed)
         replacement_altered = replacement_card.get('altered', default_altered)
         replacement_notes = replacement_card.get('notes', default_notes)
 
-        res = cur.execute(f'''UPDATE Collections
-                    SET
-                      FinishCardID = %s,
-                      Condition = %s,
-                      Signed = %s,
-                      Altered = %s,
-                      Notes = %s
-                    WHERE
-                      UserID = %s AND
-                      FinishCardID = %s AND
-                      Condition = %s AND
-                      Signed = %s AND
-                      Altered = %s AND
-                      Notes = %s
-                    ''', (replacement_finish_card_id, replacement_condition, replacement_signed, replacement_altered, replacement_notes) + (user_id, target_finish_card_id, target_card['condition'], target_card['signed'], target_card['altered'], target_card['notes']))
+        try:
+            res = cur.execute(f'''UPDATE Collections
+                        SET
+                          FinishCardID = %s,
+                          Quantity = %s,
+                          Condition = %s,
+                          Signed = %s,
+                          Altered = %s,
+                          Notes = %s
+                        WHERE
+                          ID = %s AND
+                          UserID = %s
+                        ''', (replacement_finish_card_id, replacement_quantity, replacement_condition, replacement_signed, replacement_altered, replacement_notes) + (target_card_id, user_id))
+        except psycopg.errors.UniqueViolation:
+            # TODO: This message is really long, but doesn't stay up for very long
+            # consider extending how long messages stay up (or make it configurable or based on length)
+            error = {'successful': False, 'error': "Updating that card in that way would cause it to be identical to another card in your collection, because it's unclear what to do in that case we err on the side of caution and do nothing. To accomplish this try removing all copies of the original card from your collection and then adding any number you need to the existing entry."}
+            return json.dumps(error)
 
         con.commit()
-        return_obj = {'successful': True}
+        new_card = {
+            'scryfall_id': scryfall_id,
+            'finish': replacement_finish,
+            'quantity': replacement_quantity,
+            'condition': replacement_condition,
+            'signed': replacement_signed,
+            'altered': replacement_altered,
+            'notes': replacement_notes,
+            'name': card_name,
+            'language': replacement_lang,
+            'image_src': normal_image_uri
+        }
+        return_obj = {'successful': True, 'replaced_card_id': target_card_id, 'new_card': new_card}
         return json.dumps(return_obj)
 
 

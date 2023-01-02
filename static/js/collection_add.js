@@ -223,14 +223,6 @@ async function main() {
         add_card_to_database()
     })
 
-
-    var lang_selector = document.getElementById('lang-select');
-    // Setup listener to change card when new lang is selected
-    lang_selector.addEventListener('change', (e) => {
-        var scryfall_id = e.srcElement.value
-        set_modal_card(scryfall_id);
-    });
-
     var search = document.getElementById('search');
     var fine_filter = document.getElementById('fine-filter');
     var form = document.getElementById('search-form');
