@@ -19,18 +19,16 @@ async function add_page(cards_data, create_card) {
         return;
     }
 
-    // Convert ids to format scryfall wants
+    // Convert ids to format we want
     var post_body = {
-        "identifiers": []
+        "scryfall_ids": []
     }
     for (var card of cards_data) {
-        post_body.identifiers.push({
-            "id": card.scryfall_id
-        })
+        post_body.scryfall_ids.push(card.scryfall_id)
     }
 
     // Call scryfall api for all cards in the page at once
-    await fetch(`https://api.scryfall.com/cards/collection`, {
+    await fetch(`/api/all_cards/many`, {
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -48,17 +46,14 @@ async function add_page(cards_data, create_card) {
                 var collection_card = cards_data[i];
                 var scryfall_card = cards_response.data[i];
 
-                if (scryfall_card.image_uris) {
-                    collection_card.image_src = scryfall_card.image_uris.normal;
-                }
-                else if (scryfall_card.card_faces) {
-                    collection_card.image_src = scryfall_card.card_faces[0].image_uris.normal;
+                if (scryfall_card.image_uris){
+                    collection_card.image_src = scryfall_card.image_uris[0];
                 }
                 else {
+                    // TODO: Load default replacement image
                     console.log("Couldn't find image_uris image for card:");
                     console.log(scryfall_card);
                 }
-
                 collection_card.collector_number = scryfall_card.collector_number;
                 collection_card.set = scryfall_card.set;
                 collection_card.name = scryfall_card.name;

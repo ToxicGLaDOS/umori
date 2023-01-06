@@ -265,6 +265,92 @@ def api_all_cards_search(search_text: str, page: int, default: bool):
     return json.dumps({'cards': cards, 'length': length})
 
 
+@app.route("/api/all_cards/many", methods=["POST"])
+def api_all_card_many():
+    con = get_database_connection()
+    cur = con.cursor()
+
+    request_json = request.json
+
+    content_type = request.headers.get('Content-Type')
+    if (content_type != 'application/json'):
+        error = {'successful': False, 'error': f"Expected content, got empty POST body"}
+        return json.dumps(error)
+
+    if request_json == None:
+        error = {'successful': False, 'error': "Expected json body, but didn't find one"}
+        return error
+
+    scryfall_ids = request_json.get('scryfall_ids')
+
+    if scryfall_ids == None:
+        error = {'successful': False, 'error': "Couldn't find expected key \"scryfall_ids\""}
+        return json.dumps(error)
+
+    if type(scryfall_ids) != list:
+        error = {'successful': False, 'error': f"Expected key \"scryfall_ids\" to be of type list, got {str(type(scryfall_ids).__name__)}"}
+        return json.dumps(error)
+
+
+    cards = []
+    for scryfall_id in scryfall_ids:
+        res = cur.execute('''
+                           SELECT Cards.Name, Finishes.Finish, Cards.CollectorNumber, Sets.Code, Cards.NormalImageURI, Faces.NormalImageURI FROM Cards
+                           INNER JOIN FinishCards ON FinishCards.CardID = Cards.ID
+                           INNER JOIN Finishes ON FinishCards.FinishID = Finishes.ID
+                           LEFT  JOIN Faces ON Faces.CardID = Cards.ID
+                           INNER JOIN Sets ON Sets.ID = Cards.SetID
+                           WHERE Cards.ID = %s
+                          ''', (scryfall_id,))
+
+        rows = res.fetchall()
+        if len(rows) == 0:
+            error = {'successful': False, 'error': f"Couldn't find card with ID \"{scryfall_id}\""}
+            return json.dumps(error)
+
+        # We use set() to dedupe because order doesn't matter
+        finishes = list(set(row[1] for row in rows))
+
+        cards_image_uri = rows[0][4]
+
+        # We don't use set() because order _does_ matter
+        faces_image_uris = []
+        for row in [row[5] for row in rows]:
+            if row not in faces_image_uris:
+                faces_image_uris.append(row)
+
+        if cards_image_uri != None:
+            image_uris = [cards_image_uri]
+        elif faces_image_uris != [None]:
+            image_uris = faces_image_uris
+        # This happens for cards that don't have an image in scryfall
+        else:
+            image_uris = None
+
+        # Everything but the finish should be the same for all cards so we just pull out the first one
+        card = rows[0]
+
+        name = card[0]
+        collector_number = card[2]
+        set_code = card[3]
+
+        card = {
+            'name': name,
+            'finishes': finishes,
+            'collector_number': collector_number,
+            'set': set_code,
+            # TODO: We should just return faces (even for cards without multiple faces)
+            'image_uris': image_uris
+        }
+        cards.append(card)
+
+    return_obj = {
+        'data': cards
+    }
+
+    return json.dumps(return_obj)
+
+
 @app.route("/api/all_cards")
 def api_all_cards():
     args = request.args
