@@ -294,6 +294,11 @@ def api_all_card_many():
 
     cards = []
     for scryfall_id in scryfall_ids:
+        # The ORDER BY is a quick and dirty way to make sure that we get the front image first.
+        # This works because the URI follows the format
+        # https://cards.scryfall.io/normal/<front or back>/...
+        # So we just sort it so front is first
+        # TODO: Make this less jank (might require adding which face is which when converting the JSON)
         res = cur.execute('''
                            SELECT Cards.Name, Finishes.Finish, Cards.CollectorNumber, Sets.Code, Cards.NormalImageURI, Faces.NormalImageURI FROM Cards
                            INNER JOIN FinishCards ON FinishCards.CardID = Cards.ID
@@ -301,6 +306,7 @@ def api_all_card_many():
                            LEFT  JOIN Faces ON Faces.CardID = Cards.ID
                            INNER JOIN Sets ON Sets.ID = Cards.SetID
                            WHERE Cards.ID = %s
+                           ORDER BY Faces.NormalImageURI DESC
                           ''', (scryfall_id,))
 
         rows = res.fetchall()
