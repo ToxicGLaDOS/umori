@@ -173,7 +173,6 @@ function add_card_to_database() {
     var finish = finish_selector.value;
     var condition = condition_selector.value;
     var scryfall_id = language_selector.value;
-    var language = language_selector.options[language_selector.selectedIndex].text;
     var signed = signed_input.checked;
     var altered = alter_input.checked;
     var notes = notes_text.value;
@@ -183,7 +182,6 @@ function add_card_to_database() {
         'quantity': quantity,
         'finish': finish,
         'condition': condition,
-        'language': language,
         'signed': signed,
         'altered': altered,
         'notes': notes

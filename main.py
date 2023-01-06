@@ -462,60 +462,29 @@ def api_collection():
             quantity = request_json.get('quantity')
             finish = request_json.get('finish')
             condition = request_json.get('condition')
-            language = request_json.get('language')
             signed = request_json.get('signed')
             altered = request_json.get('altered')
             notes = request_json.get('notes')
 
-            if scryfall_id == None:
-                error = {'successful': False, 'error': f'Expected key "scryfall_id" not found in POST body.'}
-                return json.dumps(error)
-            if quantity == None:
-                error = {'successful': False, 'error': f'Expected key "quantity" not found in POST body.'}
-                return json.dumps(error)
-            if finish == None:
-                error = {'successful': False, 'error': f'Expected key "finish" not found in POST body.'}
-                return json.dumps(error)
-            if condition == None:
-                error = {'successful': False, 'error': f'Expected key "condition" not found in POST body.'}
-                return json.dumps(error)
+            param_type_map = {
+                'scryfall_id': str,
+                'quantity': int,
+                'finish': str,
+                'condition': str,
+                'signed': bool,
+                'altered': bool,
+                'notes': str
+            }
 
-            if language == None:
-                error = {'successful': False, 'error': f'Expected key "language" not found in POST body.'}
-                return json.dumps(error)
-            if signed == None:
-                error = {'successful': False, 'error': f'Expected key "signed" not found in POST body.'}
-                return json.dumps(error)
-            if altered == None:
-                error = {'successful': False, 'error': f'Expected key "altered" not found in POST body.'}
-                return json.dumps(error)
-            if notes == None:
-                error = {'successful': False, 'error': f'Expected key "notes" not found in POST body.'}
-                return json.dumps(error)
+            for param_name, param_type in param_type_map.items():
+                param_value = request_json.get(param_name)
+                if param_value == None:
+                    error = {'successful': False, 'error': f'Expected key "{param_name}" not found in POST body.'}
+                    return json.dumps(error)
 
-            if type(scryfall_id) != str:
-                error = {'successful': False, 'error': f'Expected key "scryfall_id" to be a string, got {str(type(scryfall_id).__name__)}'}
-                return json.dumps(error)
-            if type(quantity) != int:
-                error = {'successful': False, 'error': f'Expected key "quantity" to be an int, got {str(type(quantity).__name__)}'}
-            if type(finish) != str:
-                error = {'successful': False, 'error': f'Expected key "finish" to be a str, got {str(type(finish).__name__)}'}
-                return json.dumps(error)
-            if type(condition) != str:
-                error = {'successful': False, 'error': f'Expected key "condition" to be a str, got {str(type(condition).__name__)}'}
-                return json.dumps(error)
-            if type(language) != str:
-                error = {'successful': False, 'error': f'Expected key "language" to be a str, got {str(type(language).__name__)}'}
-                return json.dumps(error)
-            if type(signed) != bool:
-                error = {'successful': False, 'error': f'Expected key "signed" to be a bool, got {str(type(signed).__name__)}'}
-                return json.dumps(error)
-            if type(altered) != bool:
-                error = {'successful': False, 'error': f'Expected key "altered" to be a bool, got {str(type(altered).__name__)}'}
-                return json.dumps(error)
-            if type(notes) != str:
-                error = {'successful': False, 'error': f'Expected key "notes" to be a str, got {str(type(notes).__name__)}'}
-                return json.dumps(error)
+                if type(param_value) != param_type:
+                    error = {'successful': False, 'error': f'Expected key "{param_name}" to be a of type {param_type}, got {str(type(param_value).__name__)}'}
+                    return json.dumps(error)
 
             # TODO: Check for unexpected keys
 
