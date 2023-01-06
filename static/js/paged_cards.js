@@ -15,6 +15,10 @@ async function add_page(cards_data, create_card) {
     // the next call can abort this one if needed
     add_page_abort_controller = current_abort_controller;
 
+    if (cards_data.length == 0) {
+        return;
+    }
+
     // Convert ids to format scryfall wants
     var post_body = {
         "identifiers": []
