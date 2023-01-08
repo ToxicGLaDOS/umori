@@ -1,7 +1,11 @@
 <head>
+  <link rel="stylesheet" href="/static/css/common.css">
 </head>
 <script src="static/js/generate_token.js"></script>
+<main>
 <label for="valid-until">Valid until (leave blank for no expiry): </label>
 <input type="datetime-local" step="1" id="valid-until"></input>
 <button id="generate-token-button">Generate token</button>
 <div id="token-text"></div>
+</main>
+{% include "footer.html" %}

@@ -1,9 +1,12 @@
 <head>
+  <link rel="stylesheet" href="/static/css/common.css">
   <link rel="stylesheet" href="/static/css/paged_cards.css">
   <link rel="stylesheet" href="/static/css/modal.css">
   <link rel="stylesheet" href="/static/css/collection.css">
 </head>
 <script type=module src="static/js/collection.js"></script>
+<body>
+<main>
 <label for="search">Search: </label>
 <input type="search" id="search"></input>
 <br>
@@ -14,6 +17,8 @@
 </table>
 <div id="notification-container">
 </div>
+</main>
+{% include "footer.html" %}
 <template id="card-template">
   <div class="card-div">
     <div class="card-quantity"></div>
@@ -120,3 +125,4 @@
     </div>
   </div>
 </div>
+</body>

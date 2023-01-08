@@ -1,10 +1,12 @@
 <head>
+  <link rel="stylesheet" href="/static/css/common.css">
   <link rel="stylesheet" href="/static/css/paged_cards.css">
   <link rel="stylesheet" href="/static/css/modal.css">
   <link rel="stylesheet" href="/static/css/collection.css">
   <link rel="stylesheet" href="/static/css/collection_add.css">
 </head>
 <script type=module src="/static/js/collection_add.js"></script>
+<main>
 <label for="search">Search: </label>
 <input type="search" id="search"></input>
 <label for="fine-filter">Filter this page: </label>
@@ -16,6 +18,8 @@
 <div display="grid" id="card-display"></div>
 <div id="notification-container">
 </div>
+</main>
+{% include "footer.html" %}
 
 
 <template id="notification-success-template">

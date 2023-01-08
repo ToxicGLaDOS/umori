@@ -1,5 +1,8 @@
 <head>
+  <link rel="stylesheet" href="/static/css/common.css">
 </head>
+<body>
+<main>
 <h1>Sign up</h1>
 {% with messages = get_flashed_messages() %}
     <form method="POST">
@@ -17,3 +20,6 @@
         </ul>
     {% endif %}
 {% endwith %}
+</main>
+{% include "footer.html" %}
+</body>

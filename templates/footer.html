@@ -1,0 +1,9 @@
+<footer>
+    <div class="footer-content">
+    {% if current_user.is_anonymous %}
+      <a id="login" href="/login?next={{request.path}}">Login</a>
+    {% else %}
+      <a id="logout" href="/logout?next={{request.path}}">Logout</a>
+    {% endif %}
+    </div>
+</footer>

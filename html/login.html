@@ -1,6 +1,10 @@
+<head>
+  <link rel="stylesheet" href="/static/css/common.css">
+</head>
+<main>
+<h1>Login</h1>
 {% with messages = get_flashed_messages() %}
 <form method="POST">
-    <h1>Login</h1>
     <label for="username">Username:</label>
     <input type="text" name="username" id="username"></input>
     <label for="password">Password:</label>
@@ -14,3 +18,5 @@
         </ul>
     {% endif %}
 {% endwith %}
+</main>
+{% include "footer.html" %}

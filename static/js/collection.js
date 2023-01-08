@@ -74,10 +74,13 @@ function create_card(card_data) {
         populate_modal(card._card_data.scryfall_id, card._card_data.collection_id);
     });
 
+    const tester = document.createElement("div");
+    document.body.appendChild(tester);
+
     // There must be a better way to get the width
     // of text than actually putting in the dom and getting the value
     // but I can't find it.
-    document.body.appendChild(card);
+    tester.appendChild(card);
 
     while (quantity_text.getBoundingClientRect().width > image.getBoundingClientRect().width) {
         var font_size = window.getComputedStyle(quantity_text).getPropertyValue("font-size");
@@ -90,7 +93,7 @@ function create_card(card_data) {
         foil_overlay.style.visibility = 'visible';
     }
 
-    document.body.removeChild(card);
+    document.body.removeChild(tester);
 
     return card;
 }

@@ -1,0 +1,33 @@
+body {
+  display: flex;
+  flex-direction: column;
+  margin: 0px;
+  min-height: 100vh;
+}
+
+main {
+  margin: 8px;
+  /* Expand to fill up page */
+  flex: 1;
+}
+footer {
+  background-color: #c1c1ff;
+  display: flex;
+  bottom: 0px;
+  left: 0px;
+  width: 100%;
+  justify-content: flex-end;
+  position: relative;
+}
+
+#string-size-test {
+  position: absolute;
+  visibility: hidden;
+  height: auto;
+  width: auto;
+  white-space: nowrap; /* Thanks to Herb Caudill comment */
+}
+
+.footer-content{
+  padding: 4px;
+}

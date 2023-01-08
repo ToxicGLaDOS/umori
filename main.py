@@ -935,7 +935,11 @@ def deckbuilder():
 @login_required
 def logout():
     logout_user()
-    return redirect(url_for('index'))
+    next = request.args.get('next')
+    if not is_safe_url(next):
+        return abort(400)
+
+    return redirect(next or url_for('index'))
 
 @app.route("/login", methods=['GET', 'POST'])
 def login():

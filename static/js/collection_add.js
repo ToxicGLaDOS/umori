@@ -14,10 +14,13 @@ function create_card(card_data) {
     var title = card.querySelector('.card-quantity')
     title.innerHTML = `${card_data.name} (${card_data.set}:${card_data.collector_number})`;
 
+    const tester = document.createElement("div");
+    document.body.appendChild(tester);
+
     // There must be a better way to get the width
     // of text than actually putting in the dom and getting the value
     // but I can't find it.
-    document.body.appendChild(card);
+    tester.appendChild(card);
 
     while (title.getBoundingClientRect().width > image.getBoundingClientRect().width) {
         var font_size = window.getComputedStyle(title).getPropertyValue("font-size");
@@ -33,7 +36,7 @@ function create_card(card_data) {
         image_container.appendChild(foil_overlay);
     }
 
-    document.body.removeChild(card);
+    document.body.removeChild(tester);
     return card;
 }
 
