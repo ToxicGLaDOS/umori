@@ -2,7 +2,10 @@ from flask import Flask, request, url_for, redirect, abort, render_template_stri
 from urllib.parse import urlparse, urljoin
 from flask_login import LoginManager, login_required, login_user, logout_user
 import json, sqlite3, psycopg
+import hashlib, binascii
 import flask_login
+import secrets
+from datetime import datetime
 from argon2 import PasswordHasher
 
 login_manager = LoginManager()
@@ -24,6 +27,17 @@ cur.execute('''CREATE TABLE IF NOT EXISTS Users
             Username     VARCHAR NOT NULL,
             PasswordHash VARCHAR NOT NULL,
             UNIQUE(Username)
+            )
+            ''')
+
+# Why aren't we salting these hashes?
+# https://security.stackexchange.com/questions/209936/do-i-need-to-use-salt-with-api-key-hashing
+cur.execute('''CREATE TABLE IF NOT EXISTS APITokens
+            (
+            ID         INTEGER     PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            UserID     INTEGER     REFERENCES Users(ID) NOT NULL,
+            TokenHash  BYTEA       UNIQUE NOT NULL,
+            ValidUntil TIMESTAMPTZ
             )
             ''')
 
@@ -109,7 +123,31 @@ def get_database_connection():
     return con
 
 def get_user_id(cur: psycopg.Cursor) -> tuple[int, None] | tuple[None, dict]:
-    username = flask_login.current_user.id
+    auth_header = request.headers.get('Authorization')
+    if auth_header:
+        header_parts = auth_header.split(' ')
+        invalid_format_error = {'successful': False, 'error': f"Authorization header not formatted correctly. Expected \"Bearer <token>\""}
+
+        if len(header_parts) != 2:
+            return None, invalid_format_error
+
+        bearer, token = header_parts
+        if bearer != 'Bearer':
+            return None, invalid_format_error
+
+        user_id, error = get_user_id_from_token(cur, token)
+        if error:
+            return None, error
+    else:
+        user_id, error = get_user_id_from_session(cur)
+        if error:
+            return None, error
+
+    return user_id, None
+
+
+def get_user_id_from_session(cur: psycopg.Cursor) -> tuple[int, None] | tuple[None, dict]:
+    username = flask_login.current_user.get_id()
 
     res = cur.execute('SELECT ID FROM Users WHERE Username = %s', (username,))
     user_id = res.fetchone()
@@ -120,6 +158,27 @@ def get_user_id(cur: psycopg.Cursor) -> tuple[int, None] | tuple[None, dict]:
     user_id = user_id[0]
 
     return (user_id, None)
+
+def get_user_id_from_token(cur: psycopg.Cursor, token: str) -> tuple[int, None] | tuple[None, dict]:
+    hasher = hashlib.new(HASH_FUNCTION)
+    hasher.update(binascii.unhexlify(token))
+    hashed_token_bytes = hasher.digest()
+
+    cur.execute('''SELECT Users.ID, APITokens.ValidUntil FROM Users
+                   INNER JOIN APITokens ON APITokens.UserID = Users.ID
+                   WHERE APITokens.TokenHash = %s''', (hashed_token_bytes, ))
+
+    row = cur.fetchone()
+    if row == None:
+        error = {'successful': False, 'error': "Token is invalid"}
+        return None, error
+
+    user_id, valid_until = row
+    if valid_until < datetime.now().astimezone():
+        error = {'successful': False, 'error': 'That token has expired'}
+        return None, error
+
+    return user_id, None
 
 def api_collection_search(search_text: str, page: int):
     con = get_database_connection()
@@ -533,15 +592,9 @@ def api_collection():
         con = get_database_connection()
         cur = con.cursor()
 
-        username = flask_login.current_user.id
-
-        res = cur.execute('SELECT ID FROM Users WHERE Username = %s', (username,))
-        user_id = res.fetchone()
-
-        if user_id == None:
-            return json.dumps({'successful': False, 'error': "Couldn't find user ID in database."})
-
-        user_id = user_id[0]
+        user_id, error = get_user_id(cur)
+        if error:
+            return json.dumps(error)
 
         content_type = request.headers.get('Content-Type')
         if (content_type == 'application/json'):
@@ -758,7 +811,6 @@ def api_collection():
         return_obj = {'successful': True, 'replaced_card_id': target_card_id, 'new_card': new_card}
         return json.dumps(return_obj)
 
-
 @app.route("/collection")
 @login_required
 def collection():
@@ -766,9 +818,48 @@ def collection():
         return render_template_string(collection_html.read())
 
 @app.route("/collection/add")
+@login_required
 def collection_add():
     with open('./html/collection_add.html', 'r') as collection_add_html:
         return render_template_string(collection_add_html.read())
+
+@app.route("/generate_token", methods=["GET", "POST"])
+@login_required
+def generate_token():
+    if request.method == "GET":
+        with open('./html/generate_token.html', 'r') as generate_token_html:
+            return render_template_string(generate_token_html.read())
+    elif request.method == "POST":
+        con = get_database_connection()
+        cur = con.cursor()
+        hasher = hashlib.new(HASH_FUNCTION)
+
+        content_type = request.headers.get('Content-Type')
+        if (content_type != 'application/json'):
+            error = {'successful': False, 'error': f"Expected Content-Type: application/json, found {content_type}"}
+            return json.dumps(error)
+
+        request_json = request.json
+        if request_json == None:
+            error = {'successful': False, 'error': "Expected json body, but didn't find one"}
+            return json.dumps(error)
+
+        valid_until = request_json.get('valid_until')
+        user_id, error = get_user_id(cur)
+        if error:
+            return json.dumps(error)
+
+        token_bytes = secrets.token_bytes(64)
+        token_hex = token_bytes.hex()
+        hasher.update(token_bytes)
+        hashed_token_bytes = hasher.digest()
+
+        cur.execute('''INSERT INTO APITokens(UserID, TokenHash, ValidUntil)
+                    VALUES(%s, %s, %s)
+                    ''', (user_id, hashed_token_bytes, valid_until))
+
+        con.commit()
+        return json.dumps({'successful': True, 'token': token_hex, 'valid-until': valid_until})
 
 @app.route("/deckbuilder")
 @login_required
