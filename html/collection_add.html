@@ -7,13 +7,18 @@
 </head>
 <script type=module src="/static/js/collection_add.js"></script>
 <main>
-<label for="search">Search: </label>
-<input type="search" id="search"></input>
-<label for="fine-filter">Filter this page: </label>
-<input id="fine-filter" placeholder="Set code and/or collector number"></input>
-<br>
-<label for="page-nav">Page: </label>
-<div id="page-nav" style="display:inline-block">
+<h2>Add to your collection</h2>
+<div class="navigation-bar">
+  <a href="/collection">Your collection</a>
+</div>
+<div style="padding:4px 0px 0px 0px">
+  <label for="search">Search: </label>
+  <input type="search" id="search"></input>
+  <label for="fine-filter">Filter this page: </label>
+  <input id="fine-filter" placeholder="Set code and/or collector number"></input>
+  <label for="page-nav">Page: </label>
+  <div id="page-nav" style="display:inline-block">
+  </div>
 </div>
 <div display="grid" id="card-display"></div>
 <div id="notification-container">

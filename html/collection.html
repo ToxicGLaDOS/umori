@@ -7,11 +7,15 @@
 <script type=module src="static/js/collection.js"></script>
 <body>
 <main>
-<label for="search">Search: </label>
-<input type="search" id="search"></input>
-<br>
-<label for="page-nav">Page: </label>
-<div id="page-nav" style="display:inline-block">
+<h2>{{current_user.username}}'s Collection</h2>
+<div class="navigation-bar">
+  <a href="/collection/add">Add cards to your collection</a>
+</div>
+<div style="padding:4px 0px 0px 0px">
+  <label for="search">Search: </label>
+  <input type="search" id="search"></input>
+  <label for="page-nav">Page: </label>
+  <div id="page-nav" style="display:inline-block"></div>
 </div>
 <div display="grid" id="card-display"></div>
 </table>
