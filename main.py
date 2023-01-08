@@ -5,6 +5,7 @@ import json, sqlite3, psycopg
 import hashlib, binascii
 import flask_login
 import secrets
+import config
 from datetime import datetime
 from argon2 import PasswordHasher
 
@@ -14,7 +15,7 @@ app = Flask(__name__)
 login_manager.init_app(app)
 
 HASH_FUNCTION = 'SHA3-512'
-app.config['SECRET_KEY'] = 'aed47c6a4cf84f7585ab2243a10c0e96'
+app.config['SECRET_KEY'] = config.SECRET_KEY
 
 
 con = psycopg.connect(user = "postgres", password = "password", host = "127.0.0.1", port = "5432")
