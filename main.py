@@ -333,12 +333,12 @@ def api_all_card_many():
 
     content_type = request.headers.get('Content-Type')
     if (content_type != 'application/json'):
-        error = {'successful': False, 'error': f"Expected content, got empty POST body"}
+        error = {'successful': False, 'error': f"Expected Content-Type: application/json, found {content_type}"}
         return json.dumps(error)
 
     if request_json == None:
         error = {'successful': False, 'error': "Expected json body, but didn't find one"}
-        return error
+        return json.dumps(error)
 
     scryfall_ids = request_json.get('scryfall_ids')
 
@@ -523,7 +523,6 @@ def api_collection_by_id():
 
     args = request.args
     collection_id = args.get('collection_id')
-    print(collection_id)
     if collection_id == None:
         error = {'successful': False, 'error': "Didn't find expected query parameter \"collection_id\""}
         return json.dumps(error)

@@ -223,7 +223,6 @@ async function main() {
 
     var search = document.getElementById('search');
     var fine_filter = document.getElementById('fine-filter');
-    var form = document.getElementById('search-form');
 
     bind_full_press(search, search_event_listener);
     bind_full_press(fine_filter, search_event_listener);
