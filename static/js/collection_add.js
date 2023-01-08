@@ -6,6 +6,7 @@ import {init_modal, populate_modal, set_modal_card, close_modal} from './card_de
 function create_card(card_data) {
     var template = document.getElementById("card-template");
     var card = template.content.firstElementChild.cloneNode(true);
+    card.addEventListener('click', open_card_in_modal);
 
     var image = card.querySelector('.card-image')
     image.src = card_data.image_src;
@@ -33,7 +34,6 @@ function create_card(card_data) {
     }
 
     document.body.removeChild(card);
-
     return card;
 }
 
@@ -55,6 +55,11 @@ async function load_page(page_num, search_query) {
     }
 
     add_page(response.cards, create_card);
+}
+
+function open_card_in_modal(e) {
+    const selected_id = e.currentTarget._card_data.scryfall_id
+    populate_modal(selected_id);
 }
 
 // This is the event listener for when you want to open the modal
