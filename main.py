@@ -940,22 +940,9 @@ def logout():
 @app.route("/login", methods=['GET', 'POST'])
 def login():
     if request.method == 'GET':
-        return render_template_string('''
-              {% with messages = get_flashed_messages() %}
-              <form method="POST">
-              <label for="username">Username:</label>
-              <input type="text" name="username" id="username"></input>
-              <label for="password">Password:</label>
-              <input type="text" name= "password" id="password"></input>
-              <input type="submit" value="Submit"></input>
-              {% if messages %}
-                <ul class=flashes>
-                {% for message in messages %}
-                  <li>{{ message }}</li>
-                {% endfor %}
-                </ul>
-              {% endif %}
-              {% endwith %}''')
+        with open('./html/login.html', 'r') as login:
+            return render_template_string(login.read())
+
     elif request.method == 'POST':
         con = get_database_connection()
         cur = con.cursor()
