@@ -733,7 +733,6 @@ def api_collection():
             return json.dumps(error)
 
         # TODO: Type check target and replacement
-        # TODO: Make sure to handle quantity
 
         res = cur.execute('''SELECT
                                 Colls.FinishCardID,
@@ -904,6 +903,8 @@ def generate_token():
 
         con.commit()
         return json.dumps({'successful': True, 'token': token_hex, 'valid-until': valid_until})
+    else:
+        return f"Unhandled REST method {request.method}"
 
 @app.route("/deckbuilder")
 @login_required
