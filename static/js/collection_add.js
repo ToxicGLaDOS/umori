@@ -15,6 +15,8 @@ function create_card(card_data) {
     title.innerHTML = `${card_data.name} (${card_data.set}:${card_data.collector_number})`;
 
     const tester = document.createElement("div");
+    tester.id = "string-size-test";
+
     document.body.appendChild(tester);
 
     // There must be a better way to get the width

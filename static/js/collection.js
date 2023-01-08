@@ -75,6 +75,8 @@ function create_card(card_data) {
     });
 
     const tester = document.createElement("div");
+    tester.id = "string-size-test";
+
     document.body.appendChild(tester);
 
     // There must be a better way to get the width
