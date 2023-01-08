@@ -175,7 +175,9 @@ def get_user_id_from_token(cur: psycopg.Cursor, token: str) -> tuple[int, None] 
         return None, error
 
     user_id, valid_until = row
-    if valid_until < datetime.now().astimezone():
+
+    # If valid_until is None then the token never expires
+    if valid_until != None and valid_until < datetime.now().astimezone():
         error = {'successful': False, 'error': 'That token has expired'}
         return None, error
 
