@@ -8,6 +8,7 @@ import secrets
 import config
 from datetime import datetime
 from argon2 import PasswordHasher
+from argon2.exceptions import VerifyMismatchError
 
 login_manager = LoginManager()
 
@@ -79,9 +80,9 @@ cur.execute('''INSERT INTO Users(Username, PasswordHash) VALUES(%s, %s) ON CONFL
 con.commit()
 
 class User:
-    def __init__(self, id, password):
+    def __init__(self, id, username):
         self.id = id
-        self.password = password
+        self.username = username
         self.is_authenticated = True
         self.is_active = True
         self.is_anonymous = False
@@ -92,8 +93,6 @@ class User:
 # Matches the function name that you want to go to
 login_manager.login_view = "login"
 
-users = {}
-users['me'] = User('me', 'foo')
 PAGE_SIZE = 25
 
 # Ensures the url isn't leaving our site
@@ -106,7 +105,21 @@ def is_safe_url(target):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return users.get(user_id)
+    con = get_database_connection()
+    cur = con.cursor()
+
+    res = cur.execute('''SELECT Username FROM Users
+                      WHERE ID = %s
+                      ''', (user_id,))
+
+    row = res.fetchone()
+    if row == None:
+        return None
+
+    username = row[0]
+
+    user = User(user_id, username)
+    return user
 
 @app.route("/")
 def index():
@@ -140,25 +153,13 @@ def get_user_id(cur: psycopg.Cursor) -> tuple[int, None] | tuple[None, dict]:
         if error:
             return None, error
     else:
-        user_id, error = get_user_id_from_session(cur)
-        if error:
+        user_id = flask_login.current_user.get_id()
+        if user_id == None:
+            error = {'successful': False, 'error': f"No Authorization header or session"}
             return None, error
 
     return user_id, None
 
-
-def get_user_id_from_session(cur: psycopg.Cursor) -> tuple[int, None] | tuple[None, dict]:
-    username = flask_login.current_user.get_id()
-
-    res = cur.execute('SELECT ID FROM Users WHERE Username = %s', (username,))
-    user_id = res.fetchone()
-
-    if user_id == None:
-        return (None, {'successful': False, 'error': "Couldn't find user ID in database."})
-
-    user_id = user_id[0]
-
-    return (user_id, None)
 
 def get_user_id_from_token(cur: psycopg.Cursor, token: str) -> tuple[int, None] | tuple[None, dict]:
     hasher = hashlib.new(HASH_FUNCTION)
@@ -813,6 +814,47 @@ def api_collection():
         return_obj = {'successful': True, 'replaced_card_id': target_card_id, 'new_card': new_card}
         return json.dumps(return_obj)
 
+@app.route("/signup", methods=["GET", "POST"])
+def signup():
+    if request.method == "GET":
+        with open('./html/signup.html', 'r') as signup_html:
+            return render_template_string(signup_html.read())
+    elif request.method == "POST":
+        con = get_database_connection()
+        cur = con.cursor()
+
+        username = request.form.get('username')
+        password = request.form.get('password')
+        print(username, password)
+
+        if username == None or username == "":
+            flash("Must enter a username")
+            return redirect(request.url)
+
+        if password == None or password == "":
+            flash("Must enter a password")
+            return redirect(request.url)
+
+        password_hash = ph.hash(password)
+        try:
+            res = cur.execute('''INSERT INTO Users(Username, PasswordHash)
+                              VALUES(%s, %s)
+                              RETURNING ID
+                              ''', (username, password_hash))
+        except psycopg.errors.UniqueViolation:
+            flash("That username is already taken")
+            return redirect(request.url)
+
+        user_id = res.fetchone()[0]
+        con.commit()
+
+        user = User(user_id, username)
+        user.is_authenticated = True
+        login_user(user)
+        return redirect('collection')
+    else:
+        return f"Unhandled REST method {request.method}"
+
 @app.route("/collection")
 @login_required
 def collection():
@@ -914,19 +956,50 @@ def login():
               {% endif %}
               {% endwith %}''')
     elif request.method == 'POST':
+        con = get_database_connection()
+        cur = con.cursor()
+
         username = request.form.get('username')
         password = request.form.get('password')
-        user = users[username]
-        if password == user.password:
-            user.is_authenticated = True
-            login_user(user)
-
-            next = request.args.get('next')
-            if not is_safe_url(next):
-                return abort(400)
-
-            return redirect(next or url_for('index'))
-        else:
-            user.is_authenticated = False
-            flash("Incorrect username or password")
+        if username == None or username == "":
+            flash("Must enter a username")
             return redirect(request.url)
+
+        if password == None or password == "":
+            flash("Must enter a password")
+            return redirect(request.url)
+
+
+        res = cur.execute('''SELECT ID, PasswordHash FROM Users
+                          WHERE Username = %s
+                          ''', (username, ))
+
+        row = res.fetchone()
+        if row == None:
+            flash("No user with that username exists")
+            return redirect(request.url)
+
+
+        id, password_hash = row
+        try:
+            ph.verify(password_hash, password)
+        except VerifyMismatchError:
+            flash("Incorrect password")
+            return redirect(request.url)
+
+        if ph.check_needs_rehash(password_hash):
+            cur.execute('''UPDATE Users
+                        SET PasswordHash = %s
+                        WHERE ID = %s
+                        ''', (ph.hash(password), id))
+            con.commit()
+
+        user = User(id, username)
+        user.is_authenticated = True
+        login_user(user)
+
+        next = request.args.get('next')
+        if not is_safe_url(next):
+            return abort(400)
+
+        return redirect(next or url_for('index'))
