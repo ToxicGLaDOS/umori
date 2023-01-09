@@ -76,7 +76,8 @@ async function populate_modal(scryfall_id, collection_id = null) {
         fetch(`/api/all_cards/languages?scryfall_id=${scryfall_id}`)
     ]
     if (collection_id != null) {
-        fetechs.push(fetch(`/api/collection/by_id?collection_id=${collection_id}`))
+        const username = new URL(window.location.href).pathname.split('/')[1];
+        fetechs.push(fetch(`/api/collection/by_id?collection_id=${collection_id}&username=${username}`))
     }
     const responses = await Promise.all(fetechs);
     const [by_id_response, langs_response, collection_response] = await Promise.all(responses.map(r => r.json()));

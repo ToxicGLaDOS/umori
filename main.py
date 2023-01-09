@@ -159,7 +159,17 @@ def get_user_id(cur: psycopg.Cursor) -> tuple[int, None] | tuple[None, dict]:
 
     return user_id, None
 
-class CardNotFoundException(Exception):
+def get_user_id_by_username(username: str, cur: psycopg.Cursor):
+    res = cur.execute('''SELECT ID FROM Users
+                      WHERE Username = %s''', (username, ))
+
+    row = res.fetchone()
+    if row == None:
+        raise NotFoundException(f"Couldn't find user with username {username}")
+
+    return row[0]
+
+class NotFoundException(Exception):
     pass
 
 class Card:
@@ -183,7 +193,7 @@ class Card:
 
         rows = res.fetchall()
         if len(rows) == 0:
-            raise CardNotFoundException("Couldn't find card with ID \"{scryfall_id}\"")
+            raise NotFoundException("Couldn't find card with ID \"{scryfall_id}\"")
 
         # We use set() to dedupe because order doesn't matter
         self.finishes = list(set(row[1] for row in rows))
@@ -254,15 +264,8 @@ def get_user_id_from_token(cur: psycopg.Cursor, token: str) -> tuple[int, None] 
 
     return user_id, None
 
-def api_collection_search(search_text: str, page: int):
-    con = get_database_connection()
-    cur = con.cursor()
-
+def api_collection_search(search_text: str, page: int, user_id):
     cards = []
-
-    user_id, error = get_user_id(cur)
-    if error:
-        return json.dumps(error)
 
     res = cur.execute('''SELECT colls.ID, cards.ID, cards.Name, finishes.Finish, colls.Condition, langs.Lang, colls.Signed, colls.Altered, colls.Notes, colls.Quantity FROM Collections colls
                       INNER JOIN FinishCards finishCards ON colls.FinishCardID = finishCards.ID
@@ -286,7 +289,7 @@ def api_collection_search(search_text: str, page: int):
     end = start + PAGE_SIZE
     cards = cards[start:end]
 
-    return json.dumps({'cards': cards, 'length': length})
+    return json.dumps({'successful': True, 'cards': cards, 'length': length})
 
 @app.route("/api/all_cards/languages")
 def api_all_cards_languages():
@@ -339,7 +342,7 @@ def api_by_id():
         return json.dumps(error)
     try:
         card = Card(scryfall_id)
-    except CardNotFoundException as e:
+    except NotFoundException as e:
         return json.dumps({'successful': False, 'error': str(e)})
 
     return json.dumps(card.get_dict())
@@ -417,7 +420,7 @@ def api_all_card_many():
     for scryfall_id in scryfall_ids:
         try:
             card = Card(scryfall_id)
-        except CardNotFoundException as e:
+        except NotFoundException as e:
             return json.dumps({'successful': False, 'error': str(e)})
 
         cards.append(card.get_dict())
@@ -530,14 +533,28 @@ def api_collection_by_id():
     con = get_database_connection()
     cur = con.cursor()
 
-    user_id, error = get_user_id(cur)
+    authed_user_id, error = get_user_id(cur)
     if error:
         return json.dumps(error)
 
     args = request.args
     collection_id = args.get('collection_id')
+    username = args.get('username')
+
+    if username == None:
+        error = {'successful': False, 'error': "Didn't find expected query parameter \"username\""}
+        return json.dumps(error)
     if collection_id == None:
         error = {'successful': False, 'error': "Didn't find expected query parameter \"collection_id\""}
+        return json.dumps(error)
+
+    try:
+        user_id = get_user_id_by_username(username, cur)
+    except NotFoundException as e:
+        return json.dumps({'successful': False, 'error': str(e)})
+
+    if authed_user_id != user_id:
+        error = {'successful': False, 'error': "You are not authorized to access this collection."}
         return json.dumps(error)
 
     cur.execute('''SELECT
@@ -553,7 +570,7 @@ def api_collection_by_id():
                 WHERE
                   Colls.ID = %s AND
                   Colls.UserID = %s
-                ''', (collection_id, user_id))
+                ''', (collection_id, authed_user_id))
     res = cur.fetchone()
 
     if res == None:
@@ -575,10 +592,31 @@ def api_collection_by_id():
 
 @app.route("/api/collection", methods = ['POST', 'GET', 'PATCH'])
 def api_collection():
+    con = get_database_connection()
+    cur = con.cursor()
+
     if request.method == 'GET':
         args = request.args
         page = args.get('page')
         query = args.get('query')
+
+        username = args.get('username')
+        authed_user_id, error = get_user_id(cur)
+        if error:
+            return json.dumps(error)
+
+        if username == None:
+            error = {'successful': False, 'error': "Didn't find expected query parameter \"username\""}
+            return json.dumps(error)
+
+        try:
+            user_id = get_user_id_by_username(username, cur)
+        except NotFoundException as e:
+            return json.dumps({'successful': False, 'error': str(e)})
+
+        if authed_user_id != user_id:
+            error = {'successful': False, 'error': "You are not authorized to access this collection."}
+            return json.dumps(error)
 
         if page:
             page = int(page)
@@ -589,12 +627,12 @@ def api_collection():
             if query == 'search':
                 # TODO: Check this exists and is valid
                 search_text = args.get('text')
-                return api_collection_search(search_text, page)
+                return api_collection_search(search_text, page, user_id)
             else:
                 error = {'successful': False, 'error': f'Unsupported value for query parameter "query". Expected "search". Got {query}'}
                 return json.dumps(error)
         else:
-            return api_collection_search('', page)
+            return api_collection_search('', page, user_id)
 
     # This is where we add cards to the database
     # We need to do as much error checking as possible here
@@ -604,7 +642,7 @@ def api_collection():
         con = get_database_connection()
         cur = con.cursor()
 
-        user_id, error = get_user_id(cur)
+        authed_user_id, error = get_user_id(cur)
         if error:
             return json.dumps(error)
 
@@ -622,6 +660,15 @@ def api_collection():
             signed = request_json.get('signed')
             altered = request_json.get('altered')
             notes = request_json.get('notes')
+            username = request_json.get('username')
+            if username == None:
+                error = {'successful': False, 'error': "Didn't find expected key \"username\""}
+                return json.dumps(error)
+
+            user_id = get_user_id_by_username(username, cur)
+            if authed_user_id != user_id:
+                error = {'successful': False, 'error': "You are not authorized to access this collection."}
+                return json.dumps(error)
 
             param_type_map = {
                 'scryfall_id': str,
@@ -723,7 +770,7 @@ def api_collection():
         cur = con.cursor()
 
 
-        user_id, error = get_user_id(cur)
+        authed_user_id, error = get_user_id(cur)
         if error != None:
             return json.dumps(error)
 
@@ -731,6 +778,17 @@ def api_collection():
         if request_json == None or request_json == "":
                 error = {'successful': False, 'error': f"Expected content, got empty PATCH body"}
                 return json.dumps(error)
+
+        username = request_json.get('username')
+        if username == None:
+            error = {'successful': False, 'error': "Didn't find expected key \"username\""}
+            return json.dumps(error)
+
+        user_id = get_user_id_by_username(username, cur)
+        if authed_user_id != user_id:
+            error = {'successful': False, 'error': "You are not authorized to access this collection."}
+            return json.dumps(error)
+
 
         target_card_id = request_json.get('target')
         replacement_card = request_json.get('replacement')
@@ -859,21 +917,21 @@ def signup():
         user = User(user_id, username)
         user.is_authenticated = True
         login_user(user)
-        return redirect('collection')
+        return redirect(f'{username}/collection')
     else:
         return f"Unhandled REST method {request.method}"
 
-@app.route("/collection")
+@app.route("/<username>/collection")
 @login_required
-def collection():
+def collection(username):
     with open('./html/collection.html', 'r') as collection_html:
-        return render_template_string(collection_html.read())
+        return render_template_string(collection_html.read(), username=username)
 
-@app.route("/collection/add")
+@app.route("/<username>/collection/add")
 @login_required
-def collection_add():
+def collection_add(username):
     with open('./html/collection_add.html', 'r') as collection_add_html:
-        return render_template_string(collection_add_html.read())
+        return render_template_string(collection_add_html.read(), username=username)
 
 @app.route("/generate_token", methods=["GET", "POST"])
 @login_required

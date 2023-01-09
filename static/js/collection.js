@@ -149,7 +149,9 @@ function commit_card_changes() {
         var signed = signed_input.checked;
         var altered = alter_input.checked;
         var notes = notes_text.value;
+        const username = new URL(window.location.href).pathname.split('/')[1];
         var message_body = {
+            'username': username,
             'target': collection_id,
             'replacement': {
                 'quantity': quantity,
@@ -229,13 +231,19 @@ function commit_card_changes() {
 }
 
 async function load_page(page_num, search_query) {
+    const username = new URL(window.location.href).pathname.split('/')[1];
     if (search_query) {
-        var response = await fetch(`/api/collection?page=${page_num}&query=search&text=${search_query}`)
+        var response = await fetch(`/api/collection?page=${page_num}&query=search&text=${search_query}&username=${username}`)
             .then(response => response.json());
     }
     else {
-        var response = await fetch(`/api/collection?page=${page_num}`)
+        var response = await fetch(`/api/collection?page=${page_num}&username=${username}`)
             .then(response => response.json());
+    }
+    if (!response.successful) {
+        console.log(response);
+        create_notification(response.error, false);
+        return;
     }
     var length = response.length;
     create_page_nav(length);

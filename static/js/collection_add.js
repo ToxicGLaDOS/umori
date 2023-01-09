@@ -186,6 +186,7 @@ function add_card_to_database() {
     var signed = signed_input.checked;
     var altered = alter_input.checked;
     var notes = notes_text.value;
+    const username = new URL(window.location.href).pathname.split('/')[1];
 
     var message_body = {
         'scryfall_id': scryfall_id,
@@ -194,7 +195,8 @@ function add_card_to_database() {
         'condition': condition,
         'signed': signed,
         'altered': altered,
-        'notes': notes
+        'notes': notes,
+        'username': username
     };
 
     // Make the POST request to add the card
