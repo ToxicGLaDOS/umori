@@ -18,8 +18,11 @@ login_manager.init_app(app)
 HASH_FUNCTION = 'SHA3-512'
 app.config['SECRET_KEY'] = config.SECRET_KEY
 
+def get_database_connection():
+    con = psycopg.connect(user = config.DB_USER, password = config.DB_PASSWORD, host = config.DB_HOST, port = config.DB_PORT)
+    return con
 
-con = psycopg.connect(user = "postgres", password = "password", host = "127.0.0.1", port = "5432")
+con = get_database_connection()
 cur = con.cursor()
 
 
@@ -131,10 +134,6 @@ def index():
     }
 </style>
 <div class="grid"></div>'''
-
-def get_database_connection():
-    con = psycopg.connect(user = "postgres", password = "password", host = "127.0.0.1", port = "5432")
-    return con
 
 def get_user_id(cur: psycopg.Cursor) -> tuple[int, None] | tuple[None, dict]:
     auth_header = request.headers.get('Authorization')
