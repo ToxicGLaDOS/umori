@@ -160,6 +160,77 @@ def get_user_id(cur: psycopg.Cursor) -> tuple[int, None] | tuple[None, dict]:
 
     return user_id, None
 
+class CardNotFoundException(Exception):
+    pass
+
+class Card:
+    def __init__(self, scryfall_id: str):
+        self.scryfall_id = scryfall_id
+        # The ORDER BY is a quick and dirty way to make sure that we get the front image first.
+        # This works because the URI follows the format
+        # https://cards.scryfall.io/normal/<front or back>/...
+        # So we just sort it so front is first
+        # TODO: Make this less jank (might require adding which face is which when converting the JSON)
+        res = cur.execute('''
+                      SELECT Cards.Name, Finishes.Finish, Cards.CollectorNumber, Sets.Code, Cards.NormalImageURI, Faces.NormalImageURI, Langs.Lang FROM Cards
+                      INNER JOIN FinishCards ON FinishCards.CardID = Cards.ID
+                      INNER JOIN Finishes ON FinishCards.FinishID = Finishes.ID
+                      LEFT  JOIN Faces ON Faces.CardID = Cards.ID
+                      INNER JOIN Sets ON Sets.ID = Cards.SetID
+                      INNER JOIN Langs ON Langs.ID = Cards.LangID
+                      WHERE Cards.ID = %s
+                      ORDER BY Faces.NormalImageURI DESC
+                      ''', (scryfall_id,))
+
+        rows = res.fetchall()
+        if len(rows) == 0:
+            raise CardNotFoundException("Couldn't find card with ID \"{scryfall_id}\"")
+
+        # We use set() to dedupe because order doesn't matter
+        self.finishes = list(set(row[1] for row in rows))
+
+        cards_image_uri = rows[0][4]
+
+        # We don't use set() because order _does_ matter
+        faces_image_uris = []
+        for row in [row[5] for row in rows]:
+            if row not in faces_image_uris:
+                faces_image_uris.append(row)
+
+        self.image_uris = None
+        if cards_image_uri != None:
+            self.image_uris = [cards_image_uri]
+        elif faces_image_uris != [None]:
+            self.image_uris = faces_image_uris
+
+        # Everything but the finish should be the same for all cards
+        # so we just pull out the first one
+        card = rows[0]
+
+        self.name = card[0]
+        self.collector_number = card[2]
+        self.set_code = card[3]
+        self.lang = card[6]
+
+        # Type declarations
+        self.scryfall_id: str
+        self.name: str
+        self.finishes: list
+        self.collector_number: str
+        self.set_code: str
+        self.lang: str
+        self.image_uris: list | None
+
+    def get_dict(self):
+        return_card = {
+            'name': self.name,
+            'finishes': self.finishes,
+            'collector_number': self.collector_number,
+            'set': self.set_code,
+            'image_uris': self.image_uris,
+            'lang': self.lang
+        }
+        return return_card
 
 def get_user_id_from_token(cur: psycopg.Cursor, token: str) -> tuple[int, None] | tuple[None, dict]:
     hasher = hashlib.new(HASH_FUNCTION)
@@ -267,24 +338,12 @@ def api_by_id():
     if scryfall_id == None:
         error = {'successful': False, 'error': 'Expected query param "scryfall_id"'}
         return json.dumps(error)
+    try:
+        card = Card(scryfall_id)
+    except CardNotFoundException as e:
+        return json.dumps({'successful': False, 'error': str(e)})
 
-    res = cur.execute("""SELECT Cards.ID, Cards.NormalImageURI, Finishes.Finish, Langs.Lang FROM Cards
-                      INNER JOIN FinishCards ON Cards.ID = FinishCards.CardID
-                      INNER JOIN Finishes ON FinishCards.FinishID = Finishes.ID
-                      INNER JOIN Langs ON Cards.LangID = Langs.ID
-                      WHERE Cards.ID = %s""", (scryfall_id,))
-    entries = res.fetchall()
-
-    if len(entries) == 0:
-        error = {'successful': False, 'error': f"Couldn't find card with provided scryfall_id \"{scryfall_id}\""}
-        return json.dumps(error)
-
-    card = {'scryfall_id': scryfall_id, 'finishes': [], 'image_uri': entries[0][1], 'lang': entries[0][3]}
-    for entry in entries:
-        card['finishes'].append(entry[2])
-
-
-    return json.dumps(card)
+    return json.dumps(card.get_dict())
 
 
 def api_all_cards_search(search_text: str, page: int, default: bool):
@@ -357,61 +416,12 @@ def api_all_card_many():
 
     cards = []
     for scryfall_id in scryfall_ids:
-        # The ORDER BY is a quick and dirty way to make sure that we get the front image first.
-        # This works because the URI follows the format
-        # https://cards.scryfall.io/normal/<front or back>/...
-        # So we just sort it so front is first
-        # TODO: Make this less jank (might require adding which face is which when converting the JSON)
-        res = cur.execute('''
-                           SELECT Cards.Name, Finishes.Finish, Cards.CollectorNumber, Sets.Code, Cards.NormalImageURI, Faces.NormalImageURI FROM Cards
-                           INNER JOIN FinishCards ON FinishCards.CardID = Cards.ID
-                           INNER JOIN Finishes ON FinishCards.FinishID = Finishes.ID
-                           LEFT  JOIN Faces ON Faces.CardID = Cards.ID
-                           INNER JOIN Sets ON Sets.ID = Cards.SetID
-                           WHERE Cards.ID = %s
-                           ORDER BY Faces.NormalImageURI DESC
-                          ''', (scryfall_id,))
+        try:
+            card = Card(scryfall_id)
+        except CardNotFoundException as e:
+            return json.dumps({'successful': False, 'error': str(e)})
 
-        rows = res.fetchall()
-        if len(rows) == 0:
-            error = {'successful': False, 'error': f"Couldn't find card with ID \"{scryfall_id}\""}
-            return json.dumps(error)
-
-        # We use set() to dedupe because order doesn't matter
-        finishes = list(set(row[1] for row in rows))
-
-        cards_image_uri = rows[0][4]
-
-        # We don't use set() because order _does_ matter
-        faces_image_uris = []
-        for row in [row[5] for row in rows]:
-            if row not in faces_image_uris:
-                faces_image_uris.append(row)
-
-        if cards_image_uri != None:
-            image_uris = [cards_image_uri]
-        elif faces_image_uris != [None]:
-            image_uris = faces_image_uris
-        # This happens for cards that don't have an image in scryfall
-        else:
-            image_uris = None
-
-        # Everything but the finish should be the same for all cards so we just pull out the first one
-        card = rows[0]
-
-        name = card[0]
-        collector_number = card[2]
-        set_code = card[3]
-
-        card = {
-            'name': name,
-            'finishes': finishes,
-            'collector_number': collector_number,
-            'set': set_code,
-            # TODO: We should just return faces (even for cards without multiple faces)
-            'image_uris': image_uris
-        }
-        cards.append(card)
+        cards.append(card.get_dict())
 
     return_obj = {
         'data': cards

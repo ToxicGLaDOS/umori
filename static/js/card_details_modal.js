@@ -5,14 +5,12 @@ function set_modal_card(scryfall_id) {
     fetch(`/api/by_id?scryfall_id=${scryfall_id}`)
         .then(response => response.json())
         .then(scryfall_card => {
-            if (scryfall_card.image_uri) {
-                modal_card.src = scryfall_card.image_uri;
-            }
-            else if (scryfall_card.card_faces) {
-                modal_card.src = scryfall_card.card_faces[0].image_uri;
+            console.log(scryfall_card);
+            if (scryfall_card.image_uris) {
+                modal_card.src = scryfall_card.image_uris[0];
             }
             else {
-                console.log("Couldn't find image_uris image for card:");
+                console.log("Couldn't find image_uris for card:");
                 console.log(scryfall_card);
             }
         })
