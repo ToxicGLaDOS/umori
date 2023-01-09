@@ -49,7 +49,7 @@ function open_modal() {
     var modal = document.getElementById("myModal");
 
     // Open the modal
-    modal.style.display = "block";
+    modal.style.display = "flex";
 
     var add_button = document.getElementById("commit-button");
 
