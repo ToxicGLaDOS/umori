@@ -81,6 +81,7 @@ password_hash = ph.hash('foo')
 cur.execute('''INSERT INTO Users(Username, PasswordHash) VALUES(%s, %s) ON CONFLICT DO NOTHING''', ('me', password_hash))
 
 con.commit()
+con.close()
 
 class User:
     def __init__(self, id, username):
@@ -173,7 +174,7 @@ class NotFoundException(Exception):
     pass
 
 class Card:
-    def __init__(self, scryfall_id: str):
+    def __init__(self, cur: psycopg.Cursor, scryfall_id: str):
         self.scryfall_id = scryfall_id
         # The ORDER BY is a quick and dirty way to make sure that we get the front image first.
         # This works because the URI follows the format
@@ -264,7 +265,7 @@ def get_user_id_from_token(cur: psycopg.Cursor, token: str) -> tuple[int, None] 
 
     return user_id, None
 
-def api_collection_search(search_text: str, page: int, user_id):
+def api_collection_search(cur: psycopg.Cursor, search_text: str, page: int, user_id):
     cards = []
 
     res = cur.execute('''SELECT colls.ID, cards.ID, cards.Name, finishes.Finish, colls.Condition, langs.Lang, colls.Signed, colls.Altered, colls.Notes, colls.Quantity FROM Collections colls
@@ -341,7 +342,7 @@ def api_by_id():
         error = {'successful': False, 'error': 'Expected query param "scryfall_id"'}
         return json.dumps(error)
     try:
-        card = Card(scryfall_id)
+        card = Card(cur, scryfall_id)
     except NotFoundException as e:
         return json.dumps({'successful': False, 'error': str(e)})
 
@@ -419,7 +420,7 @@ def api_all_card_many():
     cards = []
     for scryfall_id in scryfall_ids:
         try:
-            card = Card(scryfall_id)
+            card = Card(cur, scryfall_id)
         except NotFoundException as e:
             return json.dumps({'successful': False, 'error': str(e)})
 
@@ -460,7 +461,7 @@ def api_all_cards():
     else:
         return api_all_cards_search('', page, default)
 
-def get_other_language_id(scryfall_id: str, lang: str) -> tuple[str, None] | tuple[None, dict]:
+def get_other_language_id(cur: psycopg.Cursor, scryfall_id: str, lang: str) -> tuple[str, None] | tuple[None, dict]:
     res = cur.execute('''SELECT SetID, CollectorNumber FROM Cards
                       WHERE ID = %s''', (scryfall_id,))
 
@@ -502,7 +503,7 @@ def get_other_language_id(scryfall_id: str, lang: str) -> tuple[str, None] | tup
     return scryfall_id, None
 
 
-def get_finish_card_id(finish: str, scryfall_id: str) -> tuple[None, int] | tuple[dict, None]:
+def get_finish_card_id(cur: psycopg.Cursor, finish: str, scryfall_id: str) -> tuple[None, int] | tuple[dict, None]:
     error = None
     res = cur.execute('''SELECT ID FROM Finishes
                          WHERE Finish = %s
@@ -627,12 +628,12 @@ def api_collection():
             if query == 'search':
                 # TODO: Check this exists and is valid
                 search_text = args.get('text')
-                return api_collection_search(search_text, page, user_id)
+                return api_collection_search(cur, search_text, page, user_id)
             else:
                 error = {'successful': False, 'error': f'Unsupported value for query parameter "query". Expected "search". Got {query}'}
                 return json.dumps(error)
         else:
-            return api_collection_search('', page, user_id)
+            return api_collection_search(cur, '', page, user_id)
 
     # This is where we add cards to the database
     # We need to do as much error checking as possible here
@@ -708,7 +709,7 @@ def api_collection():
                     }
 
 
-            error, finish_card_id = get_finish_card_id(finish, scryfall_id)
+            error, finish_card_id = get_finish_card_id(cur, finish, scryfall_id)
             if error != None:
                 return json.dumps(error)
 
@@ -828,14 +829,14 @@ def api_collection():
 
         replacement_lang = replacement_card.get('language', default_lang)
         # Changing languages means we need to change scryfall_id as well
-        scryfall_id, error = get_other_language_id(default_scryfall_id, replacement_lang)
+        scryfall_id, error = get_other_language_id(cur, default_scryfall_id, replacement_lang)
         if scryfall_id == None:
             return json.dumps(error)
 
         print(default_lang, default_scryfall_id, replacement_lang, scryfall_id)
 
         replacement_finish = replacement_card.get('finish', default_finish_card_id)
-        error, replacement_finish_card_id = get_finish_card_id(replacement_finish, scryfall_id)
+        error, replacement_finish_card_id = get_finish_card_id(cur, replacement_finish, scryfall_id)
         if error != None:
             return json.dumps(error)
 
