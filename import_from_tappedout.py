@@ -9,10 +9,10 @@
 
 # Lightning Helix STA:125 used to show up as STA:62 in csv. This seems to be fixed, but we should watch out for errors in the csv
 
-import re, psycopg, csv
+import re, psycopg, csv, config
 
 def import_data(user: str):
-    con = psycopg.connect(user = "postgres", password = "password", host = "127.0.0.1", port = "5432")
+    con = psycopg.connect(user = config.get('DB_USER'), password = config.get('DB_PASSWORD'), host = config.get('DB_HOST'), port = config.get('DB_PORT'))
     cur = con.cursor()
 
     res = cur.execute('SELECT ID FROM Users WHERE Username = %s', (user,))
@@ -23,14 +23,8 @@ def import_data(user: str):
     res = cur.execute('SELECT ID, Finish FROM Finishes')
     finishes = res.fetchall()
 
-    res = cur.execute('SELECT ID, Condition FROM Conditions')
-    conditions = res.fetchall()
-
     # Map finish -> id
     finish_id_map= {}
-
-    # Map condition -> id
-    condition_id_map = {}
 
     scryfall_to_db_condition = {
         'NM': 'Near Mint',
@@ -41,9 +35,6 @@ def import_data(user: str):
 
     for finish in finishes:
         finish_id_map[finish[1]] = finish[0]
-
-    for condition in conditions:
-        condition_id_map[condition[1]] = condition[0]
 
     # Use local scryfall database for this
     def get_default_collectors_number(name: str, set_abbr: str) -> str:
@@ -109,6 +100,8 @@ def import_data(user: str):
                     set_abbr = 'pw21'
                 elif name == 'Archfiend of Ifnir':
                     set_abbr = 'pakh'
+                elif name == "Archmage's Charm":
+                    set_abbr = 'sch'
                 # there isn't a good way to get the correct collector number
                 # for 30th Anniversary promos
                 elif name == 'Ball Lightning' and variation == '2':
@@ -123,11 +116,15 @@ def import_data(user: str):
                     set_abbr = 'pw21'
                 elif name == 'Goblin Guide':
                     set_abbr = 'plg21'
+                elif name == 'Selfless Spirit':
+                    set_abbr = 'prcq'
                 elif name == 'Serra Angel' and variation == '5':
                     set_abbr = 'p30a'
                     variation = '1'
                 elif name == 'Swiftfoot Boots':
                     set_abbr = 'pw22'
+                elif name == 'Thraben Inspector':
+                    set_abbr = 'prcq'
                 elif name == 'Wall of Roots' and variation == '2':
                     set_abbr = 'p30a'
                     variation = '4'
@@ -200,10 +197,6 @@ def import_data(user: str):
                 else:
                     language = finish.lower()
 
-            # This is scryfall's fault, it's not in their database yet
-            if name == "Gix's Command" and prerelease:
-                continue
-
             if the_list:
                 set_abbr = 'plist'
 
@@ -256,8 +249,8 @@ def import_data(user: str):
 
             # If etched is the only option then we don't need to warn
             if len(id_finishes) > 1:
-                if finish_id_map['etched'] in finish_ids or finish_id_map['glossy'] in finish_ids:
-                    print(f"WARNING: Tappedout doesn't have etched or glossy as an option in their database and {name} ({set_abbr}:{collector_number} is available in one of those finishes. Ensure the data is correct.")
+                if finish_id_map['etched'] in finish_ids:
+                    print(f"WARNING: Tappedout doesn't have etched as an option in their database and {name} ({set_abbr}:{collector_number}) is available in etched. Ensure the data is correct.")
 
                 if not foil and finish_id_map['nonfoil'] in finish_ids:
                     finish = finish_id_map['nonfoil']
@@ -284,25 +277,13 @@ def import_data(user: str):
             altered = row['Alter'] != '-'
             signed = row['Signed'] != '-'
 
-            condition_id = condition_id_map[scryfall_to_db_condition[condition]]
+            condition = scryfall_to_db_condition[condition]
 
-            #if finishCardID in [693567,840556,899403,776536]:
-            #    print(row)
+            rows_to_insert.append((user_id, finishCardID, condition, quantity, signed, altered, ''))
 
-            rows_to_insert.append((user_id, finishCardID, condition_id, quantity, signed, altered, ''))
-
-    for index, row in enumerate(rows_to_insert):
-        for row2 in rows_to_insert[index + 1:]:
-            if row[0] == row2[0] and row[1] == row2[1] and row[2] == row2[2] and row[4] == row2[4] and row[5] == row2[5]:
-                print(f'Duplicate:', row[1])
-
-    with cur.copy("COPY Collections (UserID, FinishCardID, ConditionID, Quantity, Signed, Altered, Notes) FROM STDIN") as copy:
+    with cur.copy("COPY Collections (UserID, FinishCardID, Condition, Quantity, Signed, Altered, Notes) FROM STDIN") as copy:
         for row in rows_to_insert:
             copy.write_row(row)
-
-    quantities = cur.execute('SELECT Quantity FROM Collections WHERE UserID = %s', (user_id,)).fetchall()
-    total_cards = sum([q[0] for q in quantities])
-    assert total_cards == 7237 - 1
 
     con.commit()
 
