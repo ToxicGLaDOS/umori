@@ -318,18 +318,12 @@ def delete_dynamic_data():
 
 
 def get_database_connection():
-    con = psycopg.connect(user = config.DB_USER, password = config.DB_PASSWORD, host = config.DB_HOST, port = config.DB_PORT)
+    con = psycopg.connect(user = config.get('DB_USER'), password = config.get('DB_PASSWORD'), host = config.get('DB_HOST'), port = config.get('DB_PORT'))
     return con
 
 if __name__ == '__main__':
-    password = os.environ.get('DB_PASSWORD')
-    if not password:
-        print("Expected environment variable \"DB_PASSWORD\"")
-        exit(1)
-
-    config.DB_USER = 'postgres'
-    config.DB_PASSWORD = password
-    config.DB_HOST = 'localhost'
-    config.DB_PORT = '55432'
-
+    # TODO: Move initial database setup tasks to a function
+    # so we don't have to do this
+    # Import to do initial setup
+    import main
     unittest.main()

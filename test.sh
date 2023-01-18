@@ -1,3 +1,6 @@
+export SECRET_KEY='testingkey'
+export DB_USER='postgres'
+
 # If you provide a password via the environment
 # then we assume that you have a database set up and running
 if [ -z "$POSTGRES_PASSWORD" ]; then
@@ -8,6 +11,7 @@ if [ -z "$POSTGRES_PASSWORD" ]; then
 else
     password="$POSTGRES_PASSWORD"
 fi
+export DB_PASSWORD=$password
 
 if [ -z $2 ]; then
     echo 'Expected 2 arguments. Path to ALL data file, then path to DEFAULT data file'

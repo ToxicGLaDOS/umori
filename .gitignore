@@ -3,5 +3,4 @@ all-cards-*
 all.db
 output.csv
 printable.txt
-config.py
 __pycache__/

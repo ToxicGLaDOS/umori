@@ -33,7 +33,7 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
     #if os.path.exists('all.db'):
     #    os.remove('all.db')
 
-    con = psycopg.connect(user = config.DB_USER, password = config.DB_PASSWORD, host = config.DB_HOST, port = config.DB_PORT)
+    con = psycopg.connect(user = config.get('DB_USER'), password = config.get('DB_PASSWORD'), host = config.get('DB_HOST'), port = config.get('DB_PORT'))
 
     #con = psycopg.connect('all.db')
     cur = con.cursor()

@@ -16,10 +16,10 @@ app = Flask(__name__)
 login_manager.init_app(app)
 
 HASH_FUNCTION = 'SHA3-512'
-app.config['SECRET_KEY'] = config.SECRET_KEY
+app.config['SECRET_KEY'] = config.get('SECRET_KEY')
 
 def get_database_connection():
-    con = psycopg.connect(user = config.DB_USER, password = config.DB_PASSWORD, host = config.DB_HOST, port = config.DB_PORT)
+    con = psycopg.connect(user = config.get('DB_USER'), password = config.get('DB_PASSWORD'), host = config.get('DB_HOST'), port = config.get('DB_PORT'))
     return con
 
 con = get_database_connection()
