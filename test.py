@@ -302,6 +302,7 @@ class UserTests(LiveServerTestCase):
     # Generating api tokens
     # Using api tokens
     # Failures (not passing data, passing incorrect data, etc.)
+    # Plus and minus buttons on cards in collection
 
     def tearDown(self):
         self.driver.close()

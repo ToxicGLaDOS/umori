@@ -2,6 +2,7 @@ import {create_page_nav, add_page, initialize, create_notification} from './page
 import {init_modal, populate_modal, set_modal_card, close_modal} from './card_details_modal.js'
 
 function plus_minus_listener(card, card_data, amount){
+    const username = new URL(window.location.href).pathname.split('/')[1];
     var quantity_text = card.querySelector(".card-quantity");
     var message_body = {
         'scryfall_id': card_data['scryfall_id'],
@@ -11,7 +12,8 @@ function plus_minus_listener(card, card_data, amount){
         'language': card_data['language'],
         'signed': card_data['signed'],
         'altered': card_data['altered'],
-        'notes': card_data['notes']
+        'notes': card_data['notes'],
+        'username': username
     };
     fetch(`/api/collection`, {
         method: 'POST',
