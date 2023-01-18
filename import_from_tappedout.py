@@ -250,7 +250,7 @@ def import_data(user: str):
             # If etched is the only option then we don't need to warn
             if len(id_finishes) > 1:
                 if finish_id_map['etched'] in finish_ids:
-                    print(f"WARNING: Tappedout doesn't have etched as an option in their database and {name} ({set_abbr}:{collector_number}) is available in etched. Ensure the data is correct.")
+                    print(f"INFO: Tappedout doesn't have etched as an option in their database and {name} ({set_abbr}:{collector_number}) is available in etched. Ensure the data is correct.")
 
                 if not foil and finish_id_map['nonfoil'] in finish_ids:
                     finish = finish_id_map['nonfoil']
