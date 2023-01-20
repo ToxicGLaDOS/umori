@@ -6,6 +6,7 @@ COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY config.py .
+COPY init_database.py .
 COPY convert_scryfall_to_sql.py .
 COPY main.py .
 COPY html html/

@@ -5,7 +5,7 @@ import json, sqlite3, psycopg
 import hashlib, binascii
 import flask_login
 import secrets
-import config
+import config, init_database
 from datetime import datetime
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
@@ -22,66 +22,10 @@ def get_database_connection():
     con = psycopg.connect(user = config.get('DB_USER'), password = config.get('DB_PASSWORD'), host = config.get('DB_HOST'), port = config.get('DB_PORT'))
     return con
 
-con = get_database_connection()
-cur = con.cursor()
-
-
-cur.execute('''CREATE TABLE IF NOT EXISTS Users
-            (
-            ID           INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-            Username     VARCHAR NOT NULL,
-            PasswordHash VARCHAR NOT NULL,
-            UNIQUE(Username)
-            )
-            ''')
-
-# Why aren't we salting these hashes?
-# https://security.stackexchange.com/questions/209936/do-i-need-to-use-salt-with-api-key-hashing
-cur.execute('''CREATE TABLE IF NOT EXISTS APITokens
-            (
-            ID         INTEGER     PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-            UserID     INTEGER     REFERENCES Users(ID) NOT NULL,
-            TokenHash  BYTEA       UNIQUE NOT NULL,
-            ValidUntil TIMESTAMPTZ
-            )
-            ''')
-
-res = cur.execute("""
-            SELECT *
-              FROM pg_type typ
-                   INNER JOIN pg_namespace nsp
-                              ON nsp.oid = typ.typnamespace
-              WHERE nsp.nspname = current_schema()
-                    AND typ.typname = 'condition'""")
-
-# Create condition type if it doesn't exist
-condition_type = res.fetchone()
-if condition_type == None:
-    cur.execute("""CREATE TYPE condition AS ENUM
-                ('Damaged', 'Heavily Played', 'Moderately Played', 'Lightly Played', 'Near Mint')""")
-
-
-cur.execute('''CREATE TABLE IF NOT EXISTS Collections
-            (
-            ID           INTEGER   PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-            UserID       INTEGER   REFERENCES Users(ID)       DEFERRABLE INITIALLY DEFERRED NOT NULL,
-            FinishCardID INTEGER   REFERENCES FinishCards(ID) DEFERRABLE INITIALLY DEFERRED NOT NULL,
-            Condition    condition NOT NULL,
-            Signed       BOOLEAN   NOT NULL,
-            Altered      BOOLEAN   NOT NULL,
-            Notes        VARCHAR   NOT NULL,
-            Quantity     INTEGER   NOT NULL,
-            UNIQUE(UserID, FinishCardID, Condition, Signed, Altered, Notes)
-            )
-            ''')
-
 ph = PasswordHasher()
 password_hash = ph.hash('foo')
 
-cur.execute('''INSERT INTO Users(Username, PasswordHash) VALUES(%s, %s) ON CONFLICT DO NOTHING''', ('me', password_hash))
-
-con.commit()
-con.close()
+init_database.create_tables()
 
 class User:
     def __init__(self, id, username):

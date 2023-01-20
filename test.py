@@ -9,6 +9,7 @@ from selenium.webdriver.support.select import Select
 from selenium.webdriver.remote.webelement import WebElement
 import config
 import convert_scryfall_to_sql
+import main
 from flask import Flask
 from flask_testing import LiveServerTestCase
 
@@ -39,7 +40,6 @@ class UserlessTests(LiveServerTestCase):
         self.driver = webdriver.Chrome()
 
     def create_app(self):
-        import main
 
         app = main.app
         app.config['TESTING'] = True
@@ -86,7 +86,6 @@ class UserTests(LiveServerTestCase):
         wait.until(EC.url_contains(COLLECTION_PATH))
 
     def create_app(self):
-        import main
 
         app = main.app
         app.config['TESTING'] = True
@@ -322,8 +321,4 @@ def get_database_connection():
     return con
 
 if __name__ == '__main__':
-    # TODO: Move initial database setup tasks to a function
-    # so we don't have to do this
-    # Import to do initial setup
-    import main
     unittest.main()
