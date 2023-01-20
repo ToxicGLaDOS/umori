@@ -4,7 +4,7 @@ config = {
     'SECRET_KEY': os.environ.get('SECRET_KEY'),
     'DB_USER': os.environ.get('DB_USER'),
     'DB_PASSWORD': os.environ.get('DB_PASSWORD'),
-    'DB_HOST':"0.0.0.0",
+    'DB_HOST': os.environ.get('DB_HOST', '0.0.0.0'),
     'DB_PORT': os.environ.get('DB_PORT', '5432')
 }
 
