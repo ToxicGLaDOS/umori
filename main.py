@@ -837,7 +837,6 @@ def signup():
 
             username = request.form.get('username')
             password = request.form.get('password')
-            print(username, password)
 
             if username == None or username == "":
                 flash("Must enter a username")
