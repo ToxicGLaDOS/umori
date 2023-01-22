@@ -27,6 +27,14 @@ password_hash = ph.hash('foo')
 
 init_database.create_tables()
 
+with get_database_connection() as con:
+    cur = con.cursor()
+    rows = cur.execute("SELECT COUNT(*) FROM Cards")
+    row = rows.fetchone()
+    if row != None and row[0] == 0:
+        init_database.import_from_scryfall()
+
+
 class User:
     def __init__(self, id, username):
         self.id = id

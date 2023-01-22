@@ -1,4 +1,30 @@
-import psycopg, config
+import psycopg, config, convert_scryfall_to_sql, requests, os
+
+def import_from_scryfall():
+    response = requests.get("https://api.scryfall.com/bulk-data")
+    all_cards_path = "all_cards.json"
+    default_cards_path = "default_cards.json"
+    all_data_file = open(all_cards_path, 'w+')
+    default_data_file = open(default_cards_path, 'w+')
+    for bulk_data in response.json()['data']:
+        if bulk_data['type'] == 'all_cards':
+            uri = bulk_data['download_uri']
+            response = requests.get(uri)
+            all_data_file.write(response.text)
+
+        elif bulk_data['type'] == 'default_cards':
+            uri = bulk_data['download_uri']
+            response = requests.get(uri)
+            default_data_file.write(response.text)
+
+    all_data_file.seek(0)
+    default_data_file.seek(0)
+    convert_scryfall_to_sql.convert(all_data_file, default_data_file)
+    all_data_file.close()
+    default_data_file.close()
+
+    os.remove(all_cards_path)
+    os.remove(default_cards_path)
 
 def create_tables():
     con = psycopg.connect(user = config.get('DB_USER'), password = config.get('DB_PASSWORD'), host = config.get('DB_HOST'), port = config.get('DB_PORT'))
