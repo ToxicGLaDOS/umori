@@ -74,6 +74,10 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
     # This allows index to be used after the loop which effectively counts how many card there are
     index = 0
     for index, card in enumerate(all_data):
+        # Skip digital only cards
+        if card['digital']:
+            continue
+
         langs.add(card['lang'])
         layouts.add(card['layout'])
         image_statuses.add(card['image_status'])
@@ -228,6 +232,10 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
     num_cards = index + 1
     with cur.copy("COPY Cards (ID, OracleID, MtgoID, MtgoFoilID, TcgplayerID, CardmarketID, Name, LangID, DefaultLang, ReleasedAt, LayoutID, HighresImage, ImageStatusID, NormalImageURI, ManaCost, Cmc, TypeLine, OracleText, Power, Toughness, LegalStandardID, LegalFutureID, LegalHistoricID, LegalGladiatorID, LegalPioneerID, LegalExplorerID, LegalModernID, LegalLegacyID, LegalPauperID, LegalVintageID, LegalPennyID, LegalCommanderID, LegalBrawlID, LegalHistoricBrawlID, LegalAlchemyID, LegalPauperCommanderID, LegalDuelID, LegalOldschoolID, LegalPremodernID, Reserved, Oversized, Promo, Reprint, Variation, SetID, CollectorNumber, Digital, RarityID, FlavorText, Artist, IllustrationID, BorderColorID, FrameID, FullArt, Textless, Booster, StorySpotlight) FROM STDIN") as copy:
         for index, card in enumerate(all_data):
+            # Skip digital only cards
+            if card['digital']:
+                continue
+
             if index % 1000 == 0:
                 logging.info(f"{index}/{num_cards} {index/num_cards:.2f}")
                 pass
@@ -352,6 +360,7 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
                 keyword_cards.add((card['id'], keyword_id))
 
             for game in card['games']:
+
                 game_id = games_id_map[game]
                 game_cards.add((card['id'], game_id))
 
