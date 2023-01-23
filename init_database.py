@@ -1,30 +1,39 @@
 import psycopg, config, convert_scryfall_to_sql, requests, os, logging
 
+def get_stream(url):
+    s = requests.Session()
+    with s.get(url, headers=None, stream=True) as resp:
+        for chunk in resp.iter_content(chunk_size=512):
+            yield chunk
+
 def import_from_scryfall():
     response = requests.get("https://api.scryfall.com/bulk-data")
     all_cards_path = "all_cards.json"
     default_cards_path = "default_cards.json"
-    all_data_file = open(all_cards_path, 'w+')
-    default_data_file = open(default_cards_path, 'w+')
+    all_data_file = open(all_cards_path, 'wb')
+    default_data_file = open(default_cards_path, 'wb')
     for bulk_data in response.json()['data']:
         if bulk_data['type'] == 'all_cards':
             uri = bulk_data['download_uri']
             logging.info(f"Downloading all_cards data from {uri}")
-            response = requests.get(uri)
-            all_data_file.write(response.text)
+            for chunk in get_stream(uri):
+                all_data_file.write(chunk)
 
         elif bulk_data['type'] == 'default_cards':
             uri = bulk_data['download_uri']
             logging.info(f"Downloading default_cards data from {uri}")
-            response = requests.get(uri)
-            default_data_file.write(response.text)
+            for chunk in get_stream(uri):
+                default_data_file.write(chunk)
 
-    all_data_file.seek(0)
-    default_data_file.seek(0)
-    logging.info(f"Converting scryfall data into database")
-    convert_scryfall_to_sql.convert(all_data_file, default_data_file)
     all_data_file.close()
     default_data_file.close()
+
+    # Reopen with read permissions
+    all_data_file = open(all_cards_path, 'r')
+    default_data_file = open(default_cards_path, 'r')
+
+    logging.info(f"Converting scryfall data into database")
+    convert_scryfall_to_sql.convert(all_data_file, default_data_file)
 
     os.remove(all_cards_path)
     os.remove(default_cards_path)
