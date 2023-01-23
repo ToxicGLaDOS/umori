@@ -4,7 +4,7 @@
 # Using UNLOGGED tables and then using ALTER TABLE ... SET LOGGED seems the same as just using LOGGED tables to begin with
 # Sqlite3 is waaaay faster, for inserts but waaaay slower on the DELETES. It took about ~15 minutes or so to DELETE all the data in Sqlite3
 
-import psycopg, ijson, sys, os, timeit, requests, config, init_database
+import psycopg, ijson, sys, os, timeit, requests, config, init_database, logging
 from typing import TextIO
 
 
@@ -12,11 +12,6 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
     all_data = ijson.items(all_data_file, 'item', use_float=True)
 
     default_data = ijson.items(default_data_file, 'item', use_float=True)
-
-    #if len(all_data) < len(default_data):
-    #    print("ALL database has fewer cards than DEFAULT database, arguments are probably in wrong order.")
-    #    exit(1)
-
     default_set = set()
 
     # Populate default_set with all the scryfall_ids
@@ -25,7 +20,7 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
         scryfall_id = card['id']
 
         if scryfall_id in default_set:
-            print("Found duplicate id somehow")
+            logging.error("Found duplicate id somehow")
             exit(2)
 
         default_set.add(scryfall_id)
@@ -47,7 +42,7 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
     cur.execute('DELETE FROM Cards')
     cur.execute('DELETE FROM Faces')
 
-    print(f"DELETE tables took {timeit.default_timer() - now:.2f} seconds")
+    logging.info(f"DELETE tables took {timeit.default_timer() - now:.2f} seconds")
     now = timeit.default_timer()
 
     insert_statement = '''INSERT INTO Cards(ID, OracleID, MtgoID, MtgoFoilID, TcgplayerID, CardmarketID, Name, LangID, DefaultLang, ReleasedAt, LayoutID, HighresImage, ImageStatusID, NormalImageURI, ManaCost, Cmc, TypeLine, OracleText, Power, Toughness, LegalStandardID, LegalFutureID, LegalHistoricID, LegalGladiatorID, LegalPioneerID, LegalExplorerID, LegalModernID, LegalLegacyID, LegalPauperID, LegalVintageID, LegalPennyID, LegalCommanderID, LegalBrawlID, LegalHistoricBrawlID, LegalAlchemyID, LegalPauperCommanderID, LegalDuelID, LegalOldschoolID, LegalPremodernID, Reserved, Oversized, Promo, Reprint, Variation, SetID, CollectorNumber, Digital, RarityID, FlavorText, Artist, IllustrationID, BorderColorID, FrameID, FullArt, Textless, Booster, StorySpotlight)
@@ -122,7 +117,7 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
         for finish in card['finishes']:
             finishes.add(finish)
 
-    print(f"Discovering data took {timeit.default_timer() - now:.2f} seconds")
+    logging.info(f"Discovering data took {timeit.default_timer() - now:.2f} seconds")
     now = timeit.default_timer()
 
     # Maps value to ID in database so we don't have to SELECT later
@@ -225,7 +220,7 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
     game_cards = set()
     finish_cards = set()
 
-    print(f"INSERT (non-cards, non-faces) took {timeit.default_timer() - now:.2f} seconds")
+    logging.info(f"INSERT (non-cards, non-faces) took {timeit.default_timer() - now:.2f} seconds")
     now = timeit.default_timer()
 
     all_data_file.seek(0)
@@ -234,7 +229,7 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
     with cur.copy("COPY Cards (ID, OracleID, MtgoID, MtgoFoilID, TcgplayerID, CardmarketID, Name, LangID, DefaultLang, ReleasedAt, LayoutID, HighresImage, ImageStatusID, NormalImageURI, ManaCost, Cmc, TypeLine, OracleText, Power, Toughness, LegalStandardID, LegalFutureID, LegalHistoricID, LegalGladiatorID, LegalPioneerID, LegalExplorerID, LegalModernID, LegalLegacyID, LegalPauperID, LegalVintageID, LegalPennyID, LegalCommanderID, LegalBrawlID, LegalHistoricBrawlID, LegalAlchemyID, LegalPauperCommanderID, LegalDuelID, LegalOldschoolID, LegalPremodernID, Reserved, Oversized, Promo, Reprint, Variation, SetID, CollectorNumber, Digital, RarityID, FlavorText, Artist, IllustrationID, BorderColorID, FrameID, FullArt, Textless, Booster, StorySpotlight) FROM STDIN") as copy:
         for index, card in enumerate(all_data):
             if index % 1000 == 0:
-                print(f"{index}/{num_cards} {index/num_cards:.2f}")
+                logging.info(f"{index}/{num_cards} {index/num_cards:.2f}")
                 pass
             lang_id = langs_id_map[card['lang']]
 
@@ -277,8 +272,6 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
 
             set_type_id = set_types_id_map[card['set_type']]
 
-            if not sets_id_map.get(card['set_name']):
-                print(card)
             set_id = sets_id_map[card['set_name']]
 
             default = card['id'] in default_set
@@ -392,28 +385,28 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
     add_new(game_cards, 'GameCards', ("CardID", "GameID"))
     add_new(finish_cards, 'FinishCards', ("CardID", "FinishID"))
 
-    print(f"INSERT (cards, and card junction tables) took {timeit.default_timer() - now:.2f} seconds")
+    logging.info(f"INSERT (cards, and card junction tables) took {timeit.default_timer() - now:.2f} seconds")
     now = timeit.default_timer()
 
 
     for face in faces:
         res = cur.execute('INSERT INTO Faces (CardID, Name, ManaCost, TypeLine, OracleText, FlavorText, Artist, ArtistID, IllustrationID, NormalImageURI) VALUES(%s,%s,%s,%s,%s,%s,%s,%s,%s,%s)', face)
 
-    print(f"INSERT faces took {timeit.default_timer() - now:.2f} seconds")
+    logging.info(f"INSERT faces took {timeit.default_timer() - now:.2f} seconds")
     now = timeit.default_timer()
 
     now = timeit.default_timer()
     con.commit()
-    print(f"Commit took {timeit.default_timer() - now:.2f} seconds")
+    logging.info(f"Commit took {timeit.default_timer() - now:.2f} seconds")
 
     con.close()
 
-    print(f"Total time {timeit.default_timer() - start_time:.2f} seconds")
+    logging.info(f"Total time {timeit.default_timer() - start_time:.2f} seconds")
 
 
 if __name__ == "__main__":
     if len(sys.argv) != 3:
-        print("Expected exactly two arguments, the path to the ALL data and the path to the DEFAULT data")
+        logging.error("Expected exactly two arguments, the path to the ALL data and the path to the DEFAULT data")
 
     all_data_file = open(sys.argv[1])
     default_data_file = open(sys.argv[2])

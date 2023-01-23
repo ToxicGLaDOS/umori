@@ -1,4 +1,4 @@
-import psycopg, config, convert_scryfall_to_sql, requests, os
+import psycopg, config, convert_scryfall_to_sql, requests, os, logging
 
 def import_from_scryfall():
     response = requests.get("https://api.scryfall.com/bulk-data")
@@ -9,16 +9,19 @@ def import_from_scryfall():
     for bulk_data in response.json()['data']:
         if bulk_data['type'] == 'all_cards':
             uri = bulk_data['download_uri']
+            logging.info(f"Downloading all_cards data from {uri}")
             response = requests.get(uri)
             all_data_file.write(response.text)
 
         elif bulk_data['type'] == 'default_cards':
             uri = bulk_data['download_uri']
+            logging.info(f"Downloading default_cards data from {uri}")
             response = requests.get(uri)
             default_data_file.write(response.text)
 
     all_data_file.seek(0)
     default_data_file.seek(0)
+    logging.info(f"Converting scryfall data into database")
     convert_scryfall_to_sql.convert(all_data_file, default_data_file)
     all_data_file.close()
     default_data_file.close()

@@ -7,9 +7,15 @@ import flask_login
 import secrets
 import config, init_database
 import multiprocessing, os
+import logging
 from datetime import datetime
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='[%(asctime)s] <pid:%(process)d> {%(filename)s:%(lineno)d} %(levelname)s - %(message)s'
+)
 
 login_manager = LoginManager()
 
@@ -25,6 +31,7 @@ def get_database_connection():
 
 ph = PasswordHasher()
 
+logging.info("Creating tables")
 init_database.create_tables()
 
 # TODO: Seems like the right way to have only one
@@ -37,7 +44,7 @@ try:
         # We start a new process because gunicorn kills
         # workers if they don't respond for a while
         # and importing the database takes forever
-        print("Starting import process")
+        logging.info("Starting import process")
         p = multiprocessing.Process(target=init_database.import_from_scryfall)
         p.start()
 except FileExistsError:
@@ -786,8 +793,6 @@ def api_collection():
             if scryfall_id == None:
                 return json.dumps(error)
 
-            print(default_lang, default_scryfall_id, replacement_lang, scryfall_id)
-
             replacement_finish = replacement_card.get('finish', default_finish_card_id)
             error, replacement_finish_card_id = get_finish_card_id(cur, replacement_finish, scryfall_id)
             if error != None:
@@ -1015,3 +1020,5 @@ def login():
                 return abort(400)
 
             return redirect(next or url_for('index'))
+
+logging.info("Finished main.py, now listening for connections")
