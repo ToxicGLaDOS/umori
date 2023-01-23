@@ -30,6 +30,11 @@ def create_tables():
     con = psycopg.connect(user = config.get('DB_USER'), password = config.get('DB_PASSWORD'), host = config.get('DB_HOST'), port = config.get('DB_PORT'))
     cur = con.cursor()
 
+    # We use a lock here because multiple concurrent CREATE TABLE commands
+    # cause issues with postgres, see here
+    # https://www.postgresql.org/message-id/CA+TgmoZAdYVtwBfp1FL2sMZbiHCWT4UPrzRLNnX1Nb30Ku3-gg@mail.gmail.com
+    cur.execute('SELECT pg_advisory_lock(0)')
+
     cur.execute('''CREATE TABLE IF NOT EXISTS Langs
                 (
                 ID   INTEGER PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
@@ -355,4 +360,5 @@ def create_tables():
                 )
                 ''')
     con.commit()
+    cur.execute('SELECT pg_advisory_unlock(0)')
     con.close()

@@ -6,6 +6,7 @@ import hashlib, binascii
 import flask_login
 import secrets
 import config, init_database
+import multiprocessing, os
 from datetime import datetime
 from argon2 import PasswordHasher
 from argon2.exceptions import VerifyMismatchError
@@ -23,17 +24,24 @@ def get_database_connection():
     return con
 
 ph = PasswordHasher()
-password_hash = ph.hash('foo')
 
 init_database.create_tables()
 
-with get_database_connection() as con:
-    cur = con.cursor()
-    rows = cur.execute("SELECT COUNT(*) FROM Cards")
-    row = rows.fetchone()
-    if row != None and row[0] == 0:
-        init_database.import_from_scryfall()
+# TODO: Seems like the right way to have only one
+# worker do something is to use a message broker
+try:
+    os.mkdir('import_lock')
+    with get_database_connection() as con:
+        cur = con.cursor()
 
+        # We start a new process because gunicorn kills
+        # workers if they don't respond for a while
+        # and importing the database takes forever
+        print("Starting import process")
+        p = multiprocessing.Process(target=init_database.import_from_scryfall)
+        p.start()
+except FileExistsError:
+    pass
 
 class User:
     def __init__(self, id, username):
