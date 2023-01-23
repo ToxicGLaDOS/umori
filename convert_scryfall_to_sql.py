@@ -41,6 +41,12 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
     cur.execute('DELETE FROM Sets')
     cur.execute('DELETE FROM Cards')
     cur.execute('DELETE FROM Faces')
+    cur.execute('DELETE FROM ColorCards')
+    cur.execute('DELETE FROM ColorIdentityCards')
+    cur.execute('DELETE FROM KeywordCards')
+    cur.execute('DELETE FROM FinishCards')
+    cur.execute('DELETE FROM GameCards')
+    cur.execute('DELETE FROM MultiverseIDCards')
 
     logging.info(f"DELETE tables took {timeit.default_timer() - now:.2f} seconds")
     now = timeit.default_timer()
@@ -360,7 +366,6 @@ def convert(all_data_file: TextIO, default_data_file: TextIO):
                 keyword_cards.add((card['id'], keyword_id))
 
             for game in card['games']:
-
                 game_id = games_id_map[game]
                 game_cards.add((card['id'], game_id))
 
