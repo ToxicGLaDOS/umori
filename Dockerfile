@@ -13,4 +13,4 @@ COPY html html/
 COPY static static/
 COPY templates templates/
 
-CMD ["gunicorn", "main:app", "--bind", "0.0.0.0:80"]
+CMD ["gunicorn", "main:app", "--bind", "0.0.0.0:80", "--workers=2"]
