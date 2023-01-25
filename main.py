@@ -261,6 +261,7 @@ def api_collection_search(cur: psycopg.Cursor, search_text: str, page: int, user
 
 @app.route("/api/all_cards/languages")
 def api_all_cards_languages():
+    logging.info(f"Handling {request.path} for client {request.remote_addr}")
     with get_database_connection() as con:
         cur = con.cursor()
 
@@ -299,6 +300,7 @@ def api_all_cards_languages():
 
 @app.route("/api/by_id")
 def api_by_id():
+    logging.info(f"Handling {request.path} for client {request.remote_addr}")
     with get_database_connection() as con:
         cur = con.cursor()
 
@@ -359,6 +361,7 @@ def api_all_cards_search(search_text: str, page: int, default: bool):
 
 @app.route("/api/all_cards/many", methods=["POST"])
 def api_all_card_many():
+    logging.info(f"Handling {request.path} for client {request.remote_addr}")
     with get_database_connection() as con:
         cur = con.cursor()
 
@@ -402,6 +405,7 @@ def api_all_card_many():
 
 @app.route("/api/all_cards")
 def api_all_cards():
+    logging.info(f"Handling {request.path} for client {request.remote_addr}")
     args = request.args
     page = args.get('page')
     query = args.get('query')
@@ -498,6 +502,7 @@ def get_finish_card_id(cur: psycopg.Cursor, finish: str, scryfall_id: str) -> tu
 
 @app.route("/api/collection/by_id", methods = ['GET'])
 def api_collection_by_id():
+    logging.info(f"Handling {request.path} for client {request.remote_addr}")
     with get_database_connection() as con:
         cur = con.cursor()
 
@@ -564,6 +569,7 @@ def api_collection():
         cur = con.cursor()
 
         if request.method == 'GET':
+            logging.info(f"Handling GET {request.path} for client {request.remote_addr}")
             args = request.args
             page = args.get('page')
             query = args.get('query')
@@ -607,6 +613,7 @@ def api_collection():
         # to ensure we don't accidently mess up the database
         # or say we're adding a card when in reality we aren't
         elif request.method == 'POST':
+            logging.info(f"Handling POST {request.path} for client {request.remote_addr}")
             authed_user_id, error = get_user_id(cur)
             if error:
                 return json.dumps(error)
@@ -731,6 +738,7 @@ def api_collection():
                 error = {'successful': False, 'error': f"Expected Content-Type: application/json, found {content_type}"}
                 return json.dumps(error)
         elif request.method == "PATCH":
+            logging.info(f"Handling PATCH {request.path} for client {request.remote_addr}")
             authed_user_id, error = get_user_id(cur)
             if error != None:
                 return json.dumps(error)
@@ -841,6 +849,7 @@ def api_collection():
 
 @app.route("/signup", methods=["GET", "POST"])
 def signup():
+    logging.info(f"Handling {request.path} for client {request.remote_addr}")
     if request.method == "GET":
         with open('./html/signup.html', 'r') as signup_html:
             return render_template_string(signup_html.read())
@@ -882,18 +891,21 @@ def signup():
 @app.route("/<username>/collection")
 @login_required
 def collection(username):
+    logging.info(f"Handling {request.path} for client {request.remote_addr}")
     with open('./html/collection.html', 'r') as collection_html:
         return render_template_string(collection_html.read(), username=username)
 
 @app.route("/<username>/collection/add")
 @login_required
 def collection_add(username):
+    logging.info(f"Handling {request.path} for client {request.remote_addr}")
     with open('./html/collection_add.html', 'r') as collection_add_html:
         return render_template_string(collection_add_html.read(), username=username)
 
 @app.route("/generate_token", methods=["GET", "POST"])
 @login_required
 def generate_token():
+    logging.info(f"Handling {request.path} for client {request.remote_addr}")
     if request.method == "GET":
         with open('./html/generate_token.html', 'r') as generate_token_html:
             return render_template_string(generate_token_html.read())
